@@ -34,5 +34,7 @@ public class Main {
         cell.setColor(Color.WHITE);
         System.out.println("Color van cell is : " + cell.getColor());
 
+        Board board = new Board();
+
     }
 }

@@ -10,4 +10,8 @@ public class Move {
         this.col = col;
         this.color = color;
     }
+
+    public void makeMove(int row, int col) {
+
+    }
 }

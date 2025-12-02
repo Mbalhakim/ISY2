@@ -35,6 +35,8 @@ public class Main {
         System.out.println("Color van cell is : " + cell.getColor());
 
         Board board = new Board();
+        board.printBoard(8,8);
+
 
     }
 }

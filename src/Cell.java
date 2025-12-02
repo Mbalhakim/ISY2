@@ -27,4 +27,19 @@ public class Cell {
     public int getRow() { return row; }
 
     public int getCol() { return col; }
+
+
+@Override
+public String toString() {
+    if (state == Color.EMPTY) {
+        return "[ ]";
+    } else if (state == Color.BLACK) {
+        return "[B]";
+    } else if (state == Color.WHITE) {
+        return "[W]";
+    }
+    return "[?]";
 }
+
+}
+

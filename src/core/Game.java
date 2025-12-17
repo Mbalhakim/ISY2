@@ -16,55 +16,43 @@ public class Game {
         this.whiteStrategy = whiteStrategy;
         this.currentPlayer = Color.BLACK;
     }
-    
-    public void play() {
-        while (currentPlayer != null) {
-            board.printBoard();
-            
-            Strategy activeStrategy = (currentPlayer == Color.BLACK) 
-                ? blackStrategy : whiteStrategy;
-            
-            System.out.println("\n=== " + currentPlayer + " (" + activeStrategy.getName() + ") ===");
-            
-            if (!board.hasLegalMove(currentPlayer)) {
-                System.out.println(currentPlayer + " heeft geen zetten. PASS.");
-                currentPlayer = getNextPlayer(currentPlayer);
-                continue;
-            }
-            
-            // Krijg zet
-            int[] move = activeStrategy.chooseMove(currentPlayer, board);
-            
-            if (move != null) {
-                System.out.println(currentPlayer + " speelt: Rij " + (move[0]+1) + ", Kolom " + (move[1]+1));
-                board.makeMove(move[0], move[1], currentPlayer);
-            }
-            
-            currentPlayer = getNextPlayer(currentPlayer);
-        }
-        
-        // Game over
-        System.out.println("\n========== GAME OVER ==========\n");
-        board.printBoard();
-        
-        int blackScore = board.getScore(Color.BLACK);
-        int whiteScore = board.getScore(Color.WHITE);
-        
-        System.out.println("\nBLACK: " + blackScore + " stenen");
-        System.out.println("WHITE: " + whiteScore + " stenen");
-        
-        if (blackScore > whiteScore) {
-            System.out.println("\nWINNAAR: BLACK");
-        } else if (whiteScore > blackScore) {
-            System.out.println("\nWINNAAR: WHITE");
-        } else {
-            System.out.println("\nGELIJKSPEL");
-        }
+
+    public Board getBoard() {
+        return board;
     }
-    
+    public Color getCurrentPlayer() {
+        return currentPlayer;
+    }
+    public Strategy getActiveStrategy() {
+        return (currentPlayer == Color.BLACK) ? blackStrategy : whiteStrategy;
+    }
+    public boolean hasCurrentPlayerMove() {
+        return board.hasLegalMove(currentPlayer);
+    }
+    public int[] getMoveFromStrategy() {
+        return getActiveStrategy().chooseMove(currentPlayer, board);
+    }
+    public void makeMove(int[] move) {
+        board.makeMove(move[0], move[1], currentPlayer);
+    }
+    public void nextPlayer() {
+        currentPlayer = getNextPlayer(currentPlayer);
+    }
+    public boolean isGameOver() {
+        return currentPlayer == null;
+    }
+    public int getScore(Color color) {
+        return board.getScore(color);
+    }
+    public Color getWinner() {
+        int black = getScore(Color.BLACK);
+        int white = getScore(Color.WHITE);
+        if (black > white) return Color.BLACK;
+        if (white > black) return Color.WHITE;
+        return null;
+    }
     private Color getNextPlayer(Color prevPlayer) {
         Color otherPlayer = prevPlayer.opposite();
-        
         if (board.hasLegalMove(otherPlayer)) {
             return otherPlayer;
         } else if (board.hasLegalMove(prevPlayer)) {

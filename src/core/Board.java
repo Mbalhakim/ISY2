@@ -13,7 +13,7 @@ public class Board {
         {-1, 0}, {-1, 1}, {0, 1}, {1, 1}, {1, 0}, {1, -1}, {0, -1}, {-1, -1}
     };
     
-    // 2D grid: [row][col]
+    // 2D : [row][col]
     private Color[][] grid;
     
     public Board() {
@@ -26,25 +26,6 @@ public class Board {
     }
 
     
-   public void printBoard() {
-        System.out.println("   1  2  3  4  5  6  7  8");
-        for (int r = 0; r < SIZE; r++) {
-            System.out.print((r + 1) + " ");
-            for (int c = 0; c < SIZE; c++) {
-                Color color = grid[r][c];
-                if (color == Color.BLACK) {
-                    System.out.print(" B ");
-                } else if (color == Color.WHITE) {
-                    System.out.print(" W ");
-                } else {
-                    System.out.print("[ ]");
-                }
-            }
-            System.out.println();
-        }
-    }
-    
-
     private boolean isInBounds(int row, int col) {
 
         return row >= 0 && row < SIZE && col >= 0 && col < SIZE;
@@ -148,5 +129,9 @@ public class Board {
             }
         }
         return count;
+    }
+
+    public Color getCell(int row, int col) {
+        return grid[row][col];
     }
 }

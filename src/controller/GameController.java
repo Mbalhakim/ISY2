@@ -7,6 +7,8 @@ import interfaces.Strategy;
 import strategies.HumanStrategy;
 import strategies.RandomStrategy;
 import controller.InputHandler;
+import interfaces.GameFactory;
+import factory.DefaultGameFactory;
 import view.BoardView;
 import view.GameView;
 import view.ScoreView;
@@ -18,6 +20,7 @@ public class GameController {
     private final GameView gameView;
     private final ScoreView scoreView;
     private final MenuView menuView;
+    private final GameFactory gameFactory;
 
     public GameController() {
         this.inputHandler = new InputHandler();
@@ -25,41 +28,16 @@ public class GameController {
         this.gameView = new GameView();
         this.scoreView = new ScoreView();
         this.menuView = new MenuView();
+        this.gameFactory = new DefaultGameFactory();
     }
 
     public void startGame() {
         gameView.printStart();
         int choice = menuView.getMenuChoice();
-        String[] playerTypes = getPlayerTypes(choice);
+        String[] playerTypes = gameFactory.getPlayerTypes(choice);
         gameView.printTurn(playerTypes[0], playerTypes[1]);
-        Game game = createGame(choice);
+        Game game = gameFactory.createGame(choice);
         playGame(game);
-    }
-
-    private Game createGame(int choice) {
-        switch (choice) {
-            case 1:
-                return new Game(new HumanStrategy(), new HumanStrategy());
-            case 2:
-                return new Game(new HumanStrategy(), new RandomStrategy());
-            case 3:
-                return new Game(new RandomStrategy(), new RandomStrategy());
-            default:
-                return new Game(new HumanStrategy(), new HumanStrategy());
-        }
-    }
-
-    private String[] getPlayerTypes(int choice) {
-        switch (choice) {
-            case 1:
-                return new String[]{"Human (BLACK)", "Human (WHITE)"};
-            case 2:
-                return new String[]{"Human (BLACK)", "Random AI (WHITE)"};
-            case 3:
-                return new String[]{"Random AI (BLACK)", "Random AI (WHITE)"};
-            default:
-                return new String[]{"Human (BLACK)", "Human (WHITE)"};
-        }
     }
 
     private void playGame(Game game) {

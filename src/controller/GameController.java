@@ -1,12 +1,7 @@
 package controller;
-
 import core.Game;
-import core.Board;
 import enums.Color;
 import interfaces.Strategy;
-import strategies.HumanStrategy;
-import strategies.RandomStrategy;
-import controller.InputHandler;
 import interfaces.GameFactory;
 import factory.DefaultGameFactory;
 import view.BoardView;

@@ -2,6 +2,7 @@
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
+.idea/
 
 ### Eclipse ###
 .apt_generated
@@ -24,6 +25,16 @@ bin/
 
 ### VS Code ###
 .vscode/
+
+### Compiled Code ###
+*.class
+*.war
+*.ear
+*.nar
+
+### Logs ###
+*.log
+hs_err_pid*
 
 ### Mac OS ###
 .DS_Store

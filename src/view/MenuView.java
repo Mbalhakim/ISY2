@@ -13,7 +13,8 @@ public class MenuView {
         System.out.println("4. Human vs Minimax AI");
         System.out.println("5. Minimax vs Random");
         System.out.println("6. Minimax vs Minimax");
-        System.out.print("\nKeuze (1-6): ");
+        System.out.println("7. Online (connect to server)");
+        System.out.print("\nKeuze (1-7): ");
         int choice = 1;
         try {
             choice = scanner.nextInt();

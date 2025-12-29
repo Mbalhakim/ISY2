@@ -9,6 +9,13 @@ import view.GameView;
 import view.ScoreView;
 import view.MenuView;
 
+import network.ISYClient;
+import network.ISYListener;
+import network.ISYMessage;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
 public class GameController {
     private final InputHandler inputHandler;
     private final BoardView boardView;
@@ -32,7 +39,11 @@ public class GameController {
         String[] playerTypes = gameFactory.getPlayerTypes(choice);
         gameView.printTurn(playerTypes[0], playerTypes[1]);
         Game game = gameFactory.createGame(choice);
-        playGame(game);
+        if (choice == 7) {
+            onlinePlay(game);
+        } else {
+            playGame(game);
+        }
     }
 
     private void playGame(Game game) {
@@ -61,5 +72,50 @@ public class GameController {
         scoreView.printScore(blackScore, whiteScore);
         Color winner = game.getWinner();
         gameView.printWinner(winner == null ? null : winner.toString());
+    }
+
+    private void onlinePlay(Game game) {
+        System.out.println("Starting online mode: connecting to server localhost:7789...");
+        ISYClient client = new ISYClient();
+        client.addListener(new ISYListener() {
+            @Override
+            public void onMessage(ISYMessage message) {
+                System.out.println("[SERVER MSG] " + message.getType() + " -> " + message.getPayload());
+            }
+
+            @Override
+            public void onRawLine(String line) {
+                System.out.println("[SERVER LINE] " + line);
+            }
+
+            @Override
+            public void onError(Exception e) {
+                System.out.println("[SERVER ERROR] " + e.getMessage());
+            }
+
+            @Override
+            public void onClose() {
+                System.out.println("[SERVER CLOSED]");
+            }
+        });
+
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+            System.out.print("Enter username for server: ");
+            String name = br.readLine();
+            client.connect("127.0.0.1", 7789);
+            client.sendRaw("login " + name);
+            client.sendRaw("subscribe reversi-8");
+            System.out.println("Connected and subscribed. Listening for server messages. Type 'quit' to exit.");
+            String line;
+            while ((line = br.readLine()) != null) {
+                if (line.trim().equalsIgnoreCase("quit") || line.trim().equalsIgnoreCase("exit")) break;
+                client.sendRaw(line);
+            }
+        } catch (Exception e) {
+            System.out.println("Network error: " + e.getMessage());
+        } finally {
+            client.close();
+        }
     }
 }

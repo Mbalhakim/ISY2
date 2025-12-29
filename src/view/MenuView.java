@@ -10,7 +10,10 @@ public class MenuView {
         System.out.println("1. Human vs Human");
         System.out.println("2. Human vs Random AI");
         System.out.println("3. Random vs Random");
-        System.out.print("\nKeuze (1-3): ");
+        System.out.println("4. Human vs Minimax AI");
+        System.out.println("5. Minimax vs Random");
+        System.out.println("6. Minimax vs Minimax");
+        System.out.print("\nKeuze (1-6): ");
         int choice = 1;
         try {
             choice = scanner.nextInt();

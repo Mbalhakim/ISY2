@@ -25,6 +25,16 @@ public class Board {
         grid[4][4] = Color.WHITE;
     }
 
+    public Board copy() {
+        Board newBoard = new Board();
+        for (int r = 0; r < SIZE; r++) {
+            for (int c = 0; c < SIZE; c++) {
+                newBoard.grid[r][c] = this.grid[r][c];
+            }
+        }
+        return newBoard;
+    }
+
     
     private boolean isInBounds(int row, int col) {
         return row >= 0 && row < SIZE && col >= 0 && col < SIZE;

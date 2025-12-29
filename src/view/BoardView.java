@@ -46,18 +46,39 @@ public class BoardView {
         }
     }
 
-    // simpele helper om tekst te centreren
+    // Centreert tekst binnen een vaste breedte
     private String center(String s, int width) {
-        if (s == null) s = "";
+
+        if (s == null) {
+            s = "";
+        }
+
+        // Lengte van de string in codepunten
         int len = s.codePointCount(0, s.length());
-        if (len >= width) return s;
+
+        // Past al, dus niets doen
+        if (len >= width) {
+            return s;
+        }
+
         int pad = width - len;
         int left = pad / 2;
         int right = pad - left;
+
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < left; i++) sb.append(' ');
+
+        // Spaties links
+        for (int i = 0; i < left; i++) {
+            sb.append(' ');
+        }
+
         sb.append(s);
-        for (int i = 0; i < right; i++) sb.append(' ');
+
+        // Spaties rechts
+        for (int i = 0; i < right; i++) {
+            sb.append(' ');
+        }
+
         return sb.toString();
     }
 

@@ -147,4 +147,16 @@ public class Board {
     public int getSize() {
         return SIZE;
     }
+
+    public static int[] stringToMove(String move) {
+        if (move == null || move.length() != 2) return null;
+        try {
+            int row = Integer.parseInt(move.substring(0, 1)) - 1;
+            int col = Integer.parseInt(move.substring(1, 2)) - 1;
+            if (row < 0 || row >= 8 || col < 0 || col >= 8) return null;
+            return new int[]{row, col};
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 }

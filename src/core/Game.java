@@ -2,7 +2,6 @@ package core;
 
 import enums.Color;
 import interfaces.Strategy;
-import java.util.List;
 
 public class Game {
     private final Board board;

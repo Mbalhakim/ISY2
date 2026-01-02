@@ -1,24 +1,22 @@
 package controller;
-import core.Game;
 import core.Board;
+import core.Game;
 import enums.Color;
-import interfaces.Strategy;
-import interfaces.GameFactory;
 import factory.DefaultGameFactory;
-import view.BoardView;
-import view.GameView;
-import view.ScoreView;
-import view.MenuView;
-
+import interfaces.GameFactory;
+import interfaces.Strategy;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.List;
+import java.util.Map;
 import network.ISYClient;
 import network.ISYListener;
 import network.ISYMessage;
-
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.IOException;
-import java.util.Map;
-import java.util.List;
+import view.BoardView;
+import view.GameView;
+import view.MenuView;
+import view.ScoreView;
 
 public class GameController {
     private final InputHandler inputHandler;

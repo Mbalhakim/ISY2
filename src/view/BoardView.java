@@ -84,8 +84,8 @@ public class BoardView {
 
     // kiest het juiste teken voor een vakje
     private String getPrintableSymbol(Color color) {
-        if (color == Color.BLACK) return "B";
-        if (color == Color.WHITE) return "W";
+        if (color == Color.BLACK) return "○";
+        if (color == Color.WHITE) return "●";
         return " ";
     }
 

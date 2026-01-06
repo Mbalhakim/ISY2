@@ -4,6 +4,7 @@ import enums.Color;
 import interfaces.Strategy;
 import interfaces.GameFactory;
 import factory.DefaultGameFactory;
+import strategies.HumanStrategy;
 import view.BoardView;
 import view.GameView;
 import view.ScoreView;
@@ -13,6 +14,7 @@ import network.ISYClient;
 import network.ISYListener;
 import network.ISYMessage;
 
+import java.util.List;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
@@ -48,8 +50,12 @@ public class GameController {
 
     private void playGame(Game game) {
         while (!game.isGameOver()) {
-            boardView.printBoard(game.getBoard());
             Strategy activeStrategy = game.getActiveStrategy();
+            List<int[]> legalMovesToShow = null;
+            if (activeStrategy instanceof HumanStrategy) {
+                legalMovesToShow = game.getBoard().getLegalMoves(game.getCurrentPlayer());
+            }
+            boardView.printBoard(game.getBoard(), legalMovesToShow);
             String player = game.getCurrentPlayer().toString();
             String strat = activeStrategy.getName();
             gameView.printTurn(player, strat);

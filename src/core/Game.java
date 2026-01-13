@@ -2,7 +2,6 @@ package core;
 
 import enums.Color;
 import interfaces.Strategy;
-import java.util.List;
 
 public class Game {
     private final Board board;
@@ -23,6 +22,11 @@ public class Game {
     public Color getCurrentPlayer() {
         return currentPlayer;
     }
+    
+    public void setCurrentPlayer(Color color) {
+        this.currentPlayer = color;
+    }
+    
     public Strategy getActiveStrategy() {
         return (currentPlayer == Color.BLACK) ? blackStrategy : whiteStrategy;
     }

@@ -1,22 +1,15 @@
 package controller;
 import core.Game;
 import enums.Color;
-import interfaces.Strategy;
-import interfaces.GameFactory;
 import factory.DefaultGameFactory;
+import interfaces.GameFactory;
+import interfaces.Strategy;
+import java.util.List;
 import strategies.HumanStrategy;
 import view.BoardView;
 import view.GameView;
-import view.ScoreView;
 import view.MenuView;
-
-import network.ISYClient;
-import network.ISYListener;
-import network.ISYMessage;
-
-import java.util.List;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import view.ScoreView;
 
 public class GameController {
     private final InputHandler inputHandler;
@@ -41,8 +34,40 @@ public class GameController {
         String[] playerTypes = gameFactory.getPlayerTypes(choice);
         gameView.printTurn(playerTypes[0], playerTypes[1]);
         Game game = gameFactory.createGame(choice);
+        
         if (choice == 7) {
-            onlinePlay(game);
+            // Online mode - ask for strategy
+            System.out.println("\nOnline Modus - Kies je strategie:");
+            System.out.println("1. Menselijk (jij speelt handmatig)");
+            System.out.println("2. Willekeurige AI");
+            System.out.println("3. Minimax AI");
+            System.out.print("Keuze (1-3): ");
+            
+            int strategyChoice = 1;
+            try {
+                strategyChoice = new java.util.Scanner(System.in).nextInt();
+            } catch (Exception e) {
+                System.out.println("Ongeldige invoer, gebruik menselijke strategie");
+            }
+            
+            Strategy strategy;
+            switch (strategyChoice) {
+                case 2:
+                    strategy = new strategies.RandomStrategy();
+                    System.out.println("Gebruik Willekeurige AI strategie voor online spel");
+                    break;
+                case 3:
+                    strategy = new strategies.MinimaxStrategy(5); // Depth 5
+                    System.out.println("Gebruik Minimax AI strategie voor online spel");
+                    break;
+                default:
+                    strategy = new strategies.HumanStrategy();
+                    System.out.println("Gebruik menselijke strategie voor online spel");
+                    break;
+            }
+            
+            OnlineGameController onlineController = new OnlineGameController(game, boardView, gameView, strategy);
+            onlineController.play();
         } else {
             playGame(game);
         }
@@ -78,50 +103,5 @@ public class GameController {
         scoreView.printScore(blackScore, whiteScore);
         Color winner = game.getWinner();
         gameView.printWinner(winner == null ? null : winner.toString());
-    }
-
-    private void onlinePlay(Game game) {
-        System.out.println("Starting online mode: connecting to server localhost:7789...");
-        ISYClient client = new ISYClient();
-        client.addListener(new ISYListener() {
-            @Override
-            public void onMessage(ISYMessage message) {
-                System.out.println("[SERVER MSG] " + message.getType() + " -> " + message.getPayload());
-            }
-
-            @Override
-            public void onRawLine(String line) {
-                System.out.println("[SERVER LINE] " + line);
-            }
-
-            @Override
-            public void onError(Exception e) {
-                System.out.println("[SERVER ERROR] " + e.getMessage());
-            }
-
-            @Override
-            public void onClose() {
-                System.out.println("[SERVER CLOSED]");
-            }
-        });
-
-        try {
-            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-            System.out.print("Enter username for server: ");
-            String name = br.readLine();
-            client.connect("127.0.0.1", 7789);
-            client.sendRaw("login " + name);
-            client.sendRaw("subscribe reversi-8");
-            System.out.println("Connected and subscribed. Listening for server messages. Type 'quit' to exit.");
-            String line;
-            while ((line = br.readLine()) != null) {
-                if (line.trim().equalsIgnoreCase("quit") || line.trim().equalsIgnoreCase("exit")) break;
-                client.sendRaw(line);
-            }
-        } catch (Exception e) {
-            System.out.println("Network error: " + e.getMessage());
-        } finally {
-            client.close();
-        }
     }
 }

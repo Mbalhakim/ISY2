@@ -8,7 +8,7 @@ import java.util.List;
 public class ServerClient {
     private Socket socket;
     private BufferedReader reader;
-    private PrintWriter writer;
+    private java.io.OutputStream writer;
     private List<ServerListener> listeners;
     private Thread readerThread;
     private boolean running;
@@ -24,11 +24,10 @@ public class ServerClient {
 
     public void connect(String host, int port) throws IOException {
         socket = new Socket(host, port);
-        reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        writer = new PrintWriter(socket.getOutputStream(), true);
+        reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
+        writer = socket.getOutputStream();
         running = true;
         
-        // Start listening thread
         readerThread = new Thread(this::readLoop);
         readerThread.start();
     }
@@ -57,7 +56,14 @@ public class ServerClient {
 
     public void send(String message) {
         if (writer != null) {
-            writer.println(message);
+            try {
+                System.out.println("[SEND] " + message);
+                String fullMessage = message + "\n";
+                writer.write(fullMessage.getBytes("UTF-8"));
+                writer.flush();
+            } catch (Exception e) {
+                System.out.println("[SEND ERROR] " + e.getMessage());
+            }
         }
     }
 
@@ -69,7 +75,7 @@ public class ServerClient {
             if (writer != null) writer.close();
         } catch (IOException e) {
             // Ignore
-        }
+        } 
     }
 
     public boolean isConnected() {

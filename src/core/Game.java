@@ -22,9 +22,11 @@ public class Game {
     public Color getCurrentPlayer() {
         return currentPlayer;
     }
-    public void setCurrentPlayer(Color currentPlayer) {
-        this.currentPlayer = currentPlayer;
+    
+    public void setCurrentPlayer(Color color) {
+        this.currentPlayer = color;
     }
+    
     public Strategy getActiveStrategy() {
         return (currentPlayer == Color.BLACK) ? blackStrategy : whiteStrategy;
     }

@@ -1,18 +1,11 @@
 package controller;
-import core.Board;
 import core.Game;
 import enums.Color;
 import factory.DefaultGameFactory;
 import interfaces.GameFactory;
 import interfaces.Strategy;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.List;
-import java.util.Map;
-import network.ISYClient;
-import network.ISYListener;
-import network.ISYMessage;
+import strategies.HumanStrategy;
 import view.BoardView;
 import view.GameView;
 import view.MenuView;
@@ -41,22 +34,53 @@ public class GameController {
         String[] playerTypes = gameFactory.getPlayerTypes(choice);
         gameView.printTurn(playerTypes[0], playerTypes[1]);
         Game game = gameFactory.createGame(choice);
+        
         if (choice == 7) {
-            onlinePlay(game);
+            // Online mode - ask for strategy
+            System.out.println("\nOnline Modus - Kies je strategie:");
+            System.out.println("1. Menselijk (jij speelt handmatig)");
+            System.out.println("2. Willekeurige AI");
+            System.out.println("3. Minimax AI");
+            System.out.print("Keuze (1-3): ");
+            
+            int strategyChoice = 1;
+            try {
+                strategyChoice = new java.util.Scanner(System.in).nextInt();
+            } catch (Exception e) {
+                System.out.println("Ongeldige invoer, gebruik menselijke strategie");
+            }
+            
+            Strategy strategy;
+            switch (strategyChoice) {
+                case 2:
+                    strategy = new strategies.RandomStrategy();
+                    System.out.println("Gebruik Willekeurige AI strategie voor online spel");
+                    break;
+                case 3:
+                    strategy = new strategies.MinimaxStrategy(3); // Depth 3 for faster online play
+                    System.out.println("Gebruik Minimax AI strategie voor online spel");
+                    break;
+                default:
+                    strategy = new strategies.HumanStrategy();
+                    System.out.println("Gebruik menselijke strategie voor online spel");
+                    break;
+            }
+            
+            OnlineGameController onlineController = new OnlineGameController(game, boardView, gameView, strategy);
+            onlineController.play();
         } else {
             playGame(game);
         }
     }
 
-    public void startOnlineGame() {
-        Game game = gameFactory.createGame(7); // Online mode
-        onlinePlay(game);
-    }
-
     private void playGame(Game game) {
         while (!game.isGameOver()) {
-            boardView.printBoard(game.getBoard());
             Strategy activeStrategy = game.getActiveStrategy();
+            List<int[]> legalMovesToShow = null;
+            if (activeStrategy instanceof HumanStrategy) {
+                legalMovesToShow = game.getBoard().getLegalMoves(game.getCurrentPlayer());
+            }
+            boardView.printBoard(game.getBoard(), legalMovesToShow);
             String player = game.getCurrentPlayer().toString();
             String strat = activeStrategy.getName();
             gameView.printTurn(player, strat);
@@ -79,118 +103,5 @@ public class GameController {
         scoreView.printScore(blackScore, whiteScore);
         Color winner = game.getWinner();
         gameView.printWinner(winner == null ? null : winner.toString());
-    }
-
-    private void onlinePlay(Game game) {
-        System.out.println("Starting online mode: connecting to server localhost:7789...");
-        try {
-            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-            System.out.print("Enter username for server (no spaces): ");
-            String playerName = br.readLine().trim();
-            ISYClient client = new ISYClient();
-            final Color[] playerColorHolder = new Color[1];
-            final String[] opponentNameHolder = new String[1];
-            client.addListener(new ISYListener() {
-                @Override
-                public void onMessage(ISYMessage message) {
-                    String type = message.getType();
-                    Map<String, String> payload = message.getPayload();
-                    if ("SVR GAME MATCH".equals(type)) {
-                        opponentNameHolder[0] = payload.get("OPPONENT");
-                        String toMove = payload.get("PLAYERTOMOVE");
-                        if (toMove.equals(playerName)) {
-                            playerColorHolder[0] = Color.BLACK; // Assuming first to move is black
-                        } else {
-                            playerColorHolder[0] = Color.WHITE;
-                        }
-                        Color firstPlayerColor = toMove.equals(playerName) ? playerColorHolder[0] : playerColorHolder[0].opposite();
-                        game.setCurrentPlayer(firstPlayerColor);
-                        gameView.printStart();
-                        gameView.printTurn(game.getCurrentPlayer().toString(), "Human");
-                        boardView.printBoard(game.getBoard());
-                        System.out.println("Match started. You are " + playerColorHolder[0] + ", opponent: " + opponentNameHolder[0]);
-                    } else if ("SVR GAME MOVE".equals(type)) {
-                        String moveStr = payload.get("MOVE");
-                        String player = payload.get("PLAYER");
-                        int[] move = Board.stringToMove(moveStr);
-                        if (move != null && playerColorHolder[0] != null) {
-                            Color moveColor = player.equals(playerName) ? playerColorHolder[0] : playerColorHolder[0].opposite();
-                            game.setCurrentPlayer(moveColor);
-                            gameView.printMove(moveColor.toString(), move[0], move[1]);
-                            game.makeMove(move);
-                            game.nextPlayer();
-                            boardView.printBoard(game.getBoard());
-                            if (!game.isGameOver()) {
-                                gameView.printTurn(game.getCurrentPlayer().toString(), "Human");
-                            }
-                        }
-                    } else if ("SVR GAME YOURTURN".equals(type)) {
-                        // Prompt for move
-                        List<int[]> validMoves = game.getBoard().getLegalMoves(game.getCurrentPlayer());
-                        if (!validMoves.isEmpty()) {
-                            System.out.print("Valid moves: ");
-                            for (int[] m : validMoves) {
-                                System.out.print((m[0] + 1) + "" + (m[1] + 1) + " ");
-                            }
-                            System.out.println();
-                        }
-                        while (true) {
-                            System.out.println("Your turn. Enter move (e.g., 44 for row 4, column 4): ");
-                            try {
-                                String moveStr = br.readLine().trim().toUpperCase();
-                                int[] move = Board.stringToMove(moveStr);
-                                if (move != null) {
-                                    client.sendRaw("move reversi-8 " + moveStr);
-                                    break;
-                                } else {
-                                    System.out.println("Invalid move format. Please enter two digits (e.g., 44).");
-                                }
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                        }
-                    } else if (type.startsWith("SVR GAME WIN") || type.startsWith("SVR GAME LOSS") || type.startsWith("SVR GAME DRAW")) {
-                        // Handle WIN/LOSS/DRAW
-                        gameView.printGameOver();
-                        boardView.printBoard(game.getBoard());
-                        int blackScore = game.getScore(Color.BLACK);
-                        int whiteScore = game.getScore(Color.WHITE);
-                        scoreView.printScore(blackScore, whiteScore);
-                        Color winner = game.getWinner();
-                        gameView.printWinner(winner == null ? null : winner.toString());
-                        System.out.println("Game result: " + type);
-                    }
-                }
-
-                @Override
-                public void onRawLine(String line) {
-                    System.out.println("[SERVER LINE] " + line);
-                }
-
-                @Override
-                public void onError(Exception e) {
-                    System.out.println("[SERVER ERROR] " + e.getMessage());
-                }
-
-                @Override
-                public void onClose() {
-                    System.out.println("[SERVER CLOSED]");
-                }
-            });
-            client.connect("127.0.0.1", 7789);
-            client.sendRaw("login " + playerName);
-            client.sendRaw("subscribe reversi-8");
-            System.out.println("Connected and subscribed. Listening for server messages. To quit, close the terminal.");
-            // No main loop for input, moves are handled in YOURTURN
-            // Wait indefinitely, or until close
-            try {
-                Thread.sleep(Long.MAX_VALUE);
-            } catch (InterruptedException e) {
-                // ignore
-            }
-            client.close();
-        } catch (Exception e) {
-            System.out.println("Network error: " + e.getMessage());
-        }
     }
 }

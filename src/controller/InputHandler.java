@@ -9,32 +9,23 @@ public class InputHandler {
         scanner = new Scanner(System.in);
     }
 
-    public int getMenuChoice() {
-        System.out.println("Kies spel modus:");
-        System.out.println("1. Human vs Human");
-        System.out.println("2. Human vs Random AI");
-        System.out.println("3. Random vs Random");
-        System.out.print("\nKeuze (1-3): ");
-        int choice = 1;
-        try {
-            choice = scanner.nextInt();
-        } catch (Exception e) {
-            System.out.println("Ongeldige invoer, gebruik Human vs Human");
-            scanner.nextLine();
-        }
-        return choice;
-    }
-
     public int[] getMoveInput() {
-        System.out.print("Voer zet in (bijv. 27 voor rij 2, kolom 7): ");
+        System.out.print("Voer zet in (rij kolom, bijv: 3 4): ");
+
         try {
-            int input = scanner.nextInt();
-            int row = (input / 10) - 1;
-            int col = (input % 10) - 1;
+            int row = scanner.nextInt() - 1; // to 0-based
+            int col = scanner.nextInt() - 1;
+
+            if (row < 0 || row > 7 || col < 0 || col > 7) {
+                System.out.println("Rij en kolom moeten tussen 1 en 8 liggen.");
+                return null;
+            }
+
             return new int[]{row, col};
+
         } catch (Exception e) {
-            System.out.println("Ongeldige invoer!");
-            scanner.nextLine();
+            System.out.println("Ongeldige invoer. Gebruik: rij kolom (bijv: 3 4)");
+            scanner.nextLine(); // clear buffer
             return null;
         }
     }

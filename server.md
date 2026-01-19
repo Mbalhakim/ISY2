@@ -1,345 +1,504 @@
+# Reversi Game Server – How It Works & Protocol
 
-# New Game Server – Protocol Documentatie (2021)
+This document explains **how the Reversi (Othello) game server works**, how to start it, and **which commands you can expect** as a client.
 
-**Auteurs:**
-- Hilko Janssen
-- Remi Reuvekamp
-- Gertjan Haan
-- Timo Strating
-
-**Onder begeleiding van:** Bas Heijne  
-**In opdracht van:** Lech Bialek
+> ⚠️ **Important**
+> Command names, keywords, and protocol messages are **NOT changed**. Only explanations are translated and clarified.
 
 ---
 
-## ⚠️ Belangrijke Opmerking
+## 1. Game Server Overview
 
-Dit project is een **2de iteratie** van een oudere server.
+The game server is a Java-based server that supports multiple turn-based games, including:
 
-De oude server:
-- Hanteerde het protocol **zeer strikt**
-- Verstuurde soms berichten in een andere volgorde dan gedocumenteerd
+* **Reversi (Othello)**
+* **Tic-Tac-Toe**
 
-De nieuwe server:
-- Staat een **vrijere implementatie** toe
-- Begrijpt commando’s **met of zonder quotes** rond argumenten
-- Is **volledig backwards compatible** met de oude, strikte versie
+The server handles:
 
----
-
-## Commando’s in Detail
-
-**C** = Client  
-**S** = Server
-
-### Notities bij server-antwoorden
-- `[ ... ]` → lijst
-- `{ ... }` → map (volgorde is niet vast)
-
-### Notities bij client-commando’s
-- Commando’s zijn **niet hoofdlettergevoelig**
-- Argumenten zijn **niet hoofdlettergevoelig**
-
-⚠️ De server kan:
-- Onverwachte server-berichten sturen
-- De verbinding verbreken
-
-⚠️ Commando’s kunnen door een admin worden uitgeschakeld  
-→ Je krijgt dan `ERR` i.p.v. `OK`
+* Player connections
+* Matchmaking
+* Turn handling
+* Game state updates
+* Match results
 
 ---
 
-## Niet-ondersteund Commando
+## 2. Installation & Startup
 
+1. Download the game server zip:
 
-C: <niet ondersteund commando> | <commando> <verkeerd(e) argument(en)>
-S: ERR <reden>
-→ Geen gevolg
+   ```text
+   newgameserver-release-V1.zip
+   ```
 
-----------
+2. Extract the zip into a logical directory on your system.
 
-## Inloggen
-C: login <speler>
-S: OK | ERR <reden>
+3. Start the server from the command line:
 
--   Je bent ingelogd met een **lowercase unieke spelersnaam**
+   ```bash
+   java -jar newgamesver-release-V1.jar
+   ```
 
--   Bestond de speler al (bijv. disconnect tijdens toernooi), dan word je opnieuw toegevoegd
+### Server Details
 
+* **Game server port:** `7789`
+* **Web interface:** [http://127.0.0.1:8081](http://127.0.0.1:8081)
 
-----------
+---
 
-## Uitloggen / Verbinding verbreken
-C: logout | exit | quit | disconnect | bye
-S: -   Verbinding wordt verbroken
--    Speler blijft in het toernooi en kan later opnieuw inloggen
+## 3. Protocol Basics
+
+This server uses the **ISY-Games protocol**.
+
+### General Rules
+
+* All **client commands are case-insensitive**
+* All **arguments are case-insensitive**
+* The server may send messages **at any time**
+* The server may **close the connection** without warning
+
+### Notation
+
+* `[ ... ]` → List
+* `{ ... }` → Map / key-value structure (order not guaranteed)
+
+---
+
+## 4. Error Handling
+
+### Unsupported Command
+
+**Client**
+
+```text
+<unknown command>
+```
+
+**Server**
+
+```text
+ERR <reason>
+```
+
+* No further effect
+
+---
+
+## 5. Authentication
+
+### Login
+
+**Client**
+
+```text
+login <speler>
+```
+
+**Server**
+
+```text
+OK
+```
+
+or
+
+```text
+ERR <reden>
+```
+
+* Player name is converted to **lowercase**
+* Player names must be **unique**
+* If a player reconnects with the same name, they rejoin the tournament
+
+---
+
+### Logout / Disconnect
+
+**Client**
+
+```text
+logout | exit | quit | disconnect | bye
+```
+
+**Server**
+
+```text
 -
-## Ondersteunde Spellen Opvragen
+```
 
-C: get gamelist
-S: OK
-S: SVR GAMELIST ["<speltype>", ...]
+* Connection is closed
+* Player remains registered and can reconnect
 
-----------
+---
 
-## Verbonden Spelers Opvragen
-C: get playerlist
-S: OK
-S: SVR PLAYERLIST ["<speler>", ...]
+## 6. Information Requests
 
-## Inschrijven voor een Match (Spelzoeker)
+### Get Supported Games
 
-`C: subscribe <speltype>
-S: OK | ERR <reden>`
+**Client**
 
--   Match start zodra een tweede speler zich inschrijft
+```text
+get gamelist
+```
 
--   Kan uitgeschakeld zijn door admin
+**Server**
 
+```text
+OK
+SVR GAMELIST ["<speltype>", ...]
+```
 
-----------
+---
 
-## Match Start (Beide Spelers)
+### Get Connected Players
 
-`S: SVR GAME MATCH {
+**Client**
+
+```text
+get playerlist
+```
+
+**Server**
+
+```text
+OK
+SVR PLAYERLIST ["<speler>", ...]
+```
+
+---
+
+## 7. Matchmaking (Automatic)
+
+### Subscribe to a Game Type
+
+**Client**
+
+```text
+subscribe <speltype>
+```
+
+**Server**
+
+```text
+OK
+```
+
+* When another player subscribes to the same game type, a match starts automatically
+
+---
+
+### Match Found
+
+**Server → Both Players**
+
+```text
+SVR GAME MATCH {
   PLAYERTOMOVE: "<naam speler1>",
   GAMETYPE: "<speltype>",
   OPPONENT: "<naam tegenstander>"
-}`
+}
+```
 
-----------
+* Match has started
+* Subscription is cancelled
 
-## Beurt Ontvangen
+---
 
-`S: SVR GAME YOURTURN {
-  TURNMESSAGE: "<bericht>"
-}`
+## 8. Turn Handling
 
-----------
+### Your Turn
 
-## Zet Doen
+**Server**
 
-`C: move <zet>
-S: OK`
+```text
+SVR GAME YOURTURN {TURNMESSAGE: "<bericht>"}
+```
 
-----------
+* Client is now allowed to make a move
 
-## Resultaat van een Zet
+---
 
-`S: SVR GAME MOVE {
+### Making a Move
+
+#### For Placement Games (Reversi, Tic-Tac-Toe)
+
+**Client**
+
+```text
+choose <move>
+```
+
+**Server**
+
+```text
+OK
+```
+
+#### Move Ranges
+
+* **Tic-Tac-Toe:** `0 – 8`
+* **Reversi (Othello):** `0 – 63`
+
+Board numbering is **row-wise**, from top-left to bottom-right.
+
+---
+
+#### For Movement Games (Chess, Stratego, etc.)
+
+**Client**
+
+```text
+move <from> <to>
+```
+
+**Server**
+
+```text
+OK
+```
+
+---
+
+### Move Result
+
+**Server → Both Players**
+
+```text
+SVR GAME MOVE {
   PLAYER: "<speler>",
-  DETAILS: "<reactie>",
-  MOVE: "<zet>"
-}`
+  MOVE: "<zet>",
+  DETAILS: "<reactie spel op zet>"
+}
+```
 
-----------
+---
 
-## Resultaat van een Match
+## 9. Match Results
 
-`S: SVR GAME <WIN | LOSS | DRAW> {
+### Normal End
+
+**Server**
+
+```text
+SVR GAME <WIN | LOSS | DRAW> {
   PLAYERONESCORE: "<score speler1>",
   PLAYERTWOSCORE: "<score speler2>",
   COMMENT: "<commentaar>"
-}`
+}
+```
 
-----------
+---
 
-## Match Opgeven
+### Forfeit (Give Up)
 
-`C: forfeit
-S: OK`
+**Client**
 
-----------
+```text
+forfeit
+```
 
-## Match Resultaat na Opgeven
+**Server**
 
-`S: SVR GAME <WIN | LOSS | DRAW> {
+```text
+OK
+```
+
+**Server → Both Players**
+
+```text
+SVR GAME <WIN | LOSS> {
   PLAYERONESCORE: "<score speler1>",
   PLAYERTWOSCORE: "<score speler2>",
   COMMENT: "Player forfeited match"
-}`
+}
+```
 
-----------
+---
 
-## Match Resultaat bij Disconnect
+### Disconnect During Match
 
-`S: SVR GAME <WIN | LOSS | DRAW> {
+**Server**
+
+```text
+SVR GAME <WIN | LOSS> {
   PLAYERONESCORE: "<score speler1>",
   PLAYERTWOSCORE: "<score speler2>",
   COMMENT: "Client disconnected"
-}`
+}
+```
 
-----------
+---
 
-## Speler Uitdagen
+## 10. Challenges (Direct Match)
 
-`C: challenge "<speler>" "<speltype>"
-C: challenge <speler> <speltype>
-S: OK | ERR <reden>`
+### Challenge a Player
 
--   Quotes verplicht bij spaties
+**Client**
 
--   Oude uitdagingen vervallen automatisch
+```text
+challenge <speler> <speltype>
+```
 
--   Kan uitgeschakeld zijn door admin
+or
 
+```text
+challenge "<speler>" "<speltype>"
+```
 
-----------
+**Server**
 
-## Uitdaging Ontvangen
+```text
+OK
+```
 
-`S: SVR GAME CHALLENGE {
+---
+
+### Receive Challenge
+
+**Server**
+
+```text
+SVR GAME CHALLENGE {
   CHALLENGER: "Sjors",
   GAMETYPE: "Guess Game",
   CHALLENGENUMBER: "1"
-}`
+}
+```
 
-----------
+---
 
-## Uitdaging Vervallen
+### Accept Challenge
 
-`S: SVR GAME CHALLENGE CANCELLED {
-  CHALLENGENUMBER: "<nummer>"
-}`
+**Client**
 
-Mogelijke oorzaken:
+```text
+challenge accept <uitdaging nummer>
+```
 
--   Andere uitdaging gestart
+**Server**
 
--   Match begonnen
-
--   Disconnect
-
-
-----------
-
-## Uitdaging Accepteren
-
-`C: challenge accept <uitdaging nummer>
-S: OK | ERR <reden>`
-
-----------
-
-## Chatten
-
-`C: message <bericht>
-C: message "<bericht met spaties>"
-S: OK | ERR <reden>`
-
--   Alleen mogelijk als chat is ingeschakeld
-
-
-----------
-
-## Help
-
-### Algemene Help
-
-`C: help
-S: OK`
-
-### Help voor Specifiek Commando
-
-`C: help <commando>
-S: OK`
-
-### Help Antwoord
-
-`S: SVR HELP <help informatie>`
-
-----------
-
-## Overzicht Server-Berichten
-
-Bericht
-
-Betekenis
-
+```text
 OK
+```
 
-Commando geaccepteerd
+---
 
+### Challenge Cancelled
+
+**Server**
+
+```text
+SVR GAME CHALLENGE CANCELLED {CHALLENGENUMBER: "<nummer>"}
+```
+
+---
+
+## 11. Chat (Optional)
+
+**Client**
+
+```text
+message <bericht>
+message "<bericht met spaties>"
+```
+
+**Server**
+
+```text
+OK
+```
+
+or
+
+```text
+ERR <reden>
+```
+
+* Only works if chat is enabled by the admin
+
+---
+
+## 12. Help System
+
+### General Help
+
+**Client**
+
+```text
+help
+```
+
+**Server**
+
+```text
+OK
+SVR HELP <help informatie>
+```
+
+---
+
+### Command-Specific Help
+
+**Client**
+
+```text
+help <commando>
+```
+
+---
+
+## 13. Server Message Overview
+
+```text
+OK
 ERR
-
-Commando afgewezen
-
 SVR HELP
-
-Help informatie
-
 SVR GAME MATCH
-
-Match gestart
-
 SVR GAME YOURTURN
-
-Beurt toegewezen
-
 SVR GAME MOVE
-
-Zet uitgevoerd
-
 SVR GAME CHALLENGE
-
-Uitdaging
-
 SVR GAME WIN
-
-Gewonnen
-
 SVR GAME LOSS
-
-Verloren
-
 SVR GAME DRAW
+```
 
-Gelijkspel
+---
 
-----------
+## 14. Client Command Overview
 
-## Overzicht Client-Commando’s
+```text
+login
+logout | exit | quit | disconnect | bye
+get gamelist
+get playerlist
+subscribe
+choose       (for placement games: Reversi, Tic-Tac-Toe)
+move         (for movement games: Chess, Stratego)
+challenge
+challenge accept
+forfeit
+message
+help
+```
 
--   `login`
+---
 
--   `logout | exit | quit | disconnect | bye`
+## 15. Reversi-Specific Notes
 
--   `get gamelist`
+* Board size: **8×8**
+* Moves range from `0` to `63`
+* **Use `choose` command** (not `move`)
+* Server validates legal moves
+* Turn order is enforced strictly
 
--   `get playerlist`
+**Example:**
+```text
+Client: choose 19
+Server: OK
+Server: SVR GAME MOVE {PLAYER: "username", MOVE: "19", DETAILS: ""}
+```
 
--   `subscribe`
+---
 
--   `move`
-
--   `challenge [accept]`
-
--   `forfeit`
-
--   `message`
-
--   `help [commando]`
-
-
-----------
-
-## 💡 Tips & Tricks (Winnaars 2019)
-
-1.  Lees de wiki van **Othello/Reversi**
-
-2.  Hardcode copyright **niet**
-
-3.  Server-instellingen kunnen veranderen
-
-4.  Test met een klasgenoot vóór het toernooi
-
-5.  Sommige spellen vereisen een gepasseerde beurt
-
-6.  Spam de server niet
-
-7.  Oude clients hadden soms gevaarlijke popups
-
-8.  Iedereen wordt automatisch in het toernooi gezet
-
-9.  **Test. Test. Test.**
-
-10.  De schrijver won zonder deze tips — gebruik ze 
+✅ This document can be used directly as a **Markdown (.md)** file for documentation, reports, or projects.

@@ -15,13 +15,13 @@ public class DefaultGameFactory implements GameFactory {
             case 2:
                 return new Game(new HumanStrategy(), new RandomStrategy());
             case 3:
-                return new Game(new RandomStrategy(), new RandomStrategy());
-            case 4:
                 return new Game(new HumanStrategy(), new MinimaxStrategy(4));
+            case 4:
+                return new Game(new RandomStrategy(), new RandomStrategy());
             case 5:
-                return new Game(new MinimaxStrategy(4), new RandomStrategy());
-            case 6:
                 return new Game(new MinimaxStrategy(4), new MinimaxStrategy(4));
+            case 6:
+                return new Game(new MinimaxStrategy(4), new RandomStrategy());
             default:
                 return new Game(new HumanStrategy(), new HumanStrategy());
         }
@@ -35,13 +35,13 @@ public class DefaultGameFactory implements GameFactory {
             case 2:
                 return new String[]{"Human (BLACK)", "Random AI (WHITE)"};
             case 3:
-                return new String[]{"Random AI (BLACK)", "Random AI (WHITE)"};
-            case 4:
                 return new String[]{"Human (BLACK)", "Minimax AI (WHITE)"};
+            case 4:
+                return new String[]{"Random AI (BLACK)", "Random AI (WHITE)"};
             case 5:
-                return new String[]{"Minimax AI (BLACK)", "Random AI (WHITE)"};
-            case 6:
                 return new String[]{"Minimax AI (BLACK)", "Minimax AI (WHITE)"};
+            case 6:
+                return new String[]{"Minimax AI (BLACK)", "Random AI (WHITE)"};
             default:
                 return new String[]{"Human (BLACK)", "Human (WHITE)"};
         }

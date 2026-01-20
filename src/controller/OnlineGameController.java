@@ -20,11 +20,11 @@ public class OnlineGameController {
     private String playerName;
     private String opponentName;
     private Color myColor;
+    private Color opponentColor;
     private String firstPlayerName;
     private boolean isMyTurn;
     private boolean gameActive;
     private boolean inMatch = false;
-    private boolean myTurn = false;
 
     public OnlineGameController(Game game, BoardView boardView, GameView gameView, Strategy strategy) {
         this.game = game;
@@ -128,14 +128,15 @@ public class OnlineGameController {
         opponentName = msg.get("OPPONENT");
         firstPlayerName = msg.get("PLAYERTOMOVE");
         inMatch = true;
-        myTurn = false;
 
-        // First player is BLACK, second is WHITE
+        // Determine local and opponent colors and cache them (do NOT derive later from names)
         if (firstPlayerName.equalsIgnoreCase(playerName)) {
             myColor = Color.BLACK;
+            opponentColor = Color.WHITE;
             game.setCurrentPlayer(Color.BLACK);
         } else {
             myColor = Color.WHITE;
+            opponentColor = Color.BLACK;
             game.setCurrentPlayer(Color.BLACK); // Game starts with BLACK
         }
 
@@ -154,7 +155,8 @@ public class OnlineGameController {
     }
 
     private void handleYourTurn(ServerMessage msg) {
-        myTurn = true;
+        // mark that it's our turn (use only isMyTurn)
+        isMyTurn = true;
 
         System.out.println("\n" + "=".repeat(50));
         System.out.println(" JOUW BEURT - JE HEBT ~10 SECONDEN!");
@@ -168,7 +170,7 @@ public class OnlineGameController {
         if (legalMoves.isEmpty()) {
             System.out.println("Geen legale zetten beschikbaar!");
             client.send("choose -1");
-            myTurn = false;
+            isMyTurn = false;
             return;
         } else {
             System.out.println("\nSNEL! Kies een zet (typ het nummer):");
@@ -183,6 +185,8 @@ public class OnlineGameController {
         // AI makes move immediately
         if (!(strategy instanceof strategies.HumanStrategy)) {
             System.out.println("\nAI denkt na...");
+            // recompute legal moves just before sending
+            java.util.List<int[]> currentLegal = game.getBoard().getLegalMoves(myColor);
             int[] move = strategy.chooseMove(myColor, game.getBoard());
 
             if (move != null) {
@@ -191,16 +195,26 @@ public class OnlineGameController {
                 int position = row * 8 + col;
                 System.out.println("AI koos: rij " + (row+1) + ", kolom " + (col+1) + " (positie " + position + ")");
 
-                if (inMatch && myTurn) {
+                // ensure move is currently legal
+                boolean isStillLegal = false;
+                for (int[] m : currentLegal) {
+                    if (m[0] == row && m[1] == col) {
+                        isStillLegal = true;
+                        break;
+                    }
+                }
+
+                if (inMatch && isMyTurn && isStillLegal) {
                     client.send("choose " + position);
-                    myTurn = false;
+                    isMyTurn = false;
+                } else {
+                    System.out.println("AI zet niet verzonden (niet meer legaal of niet onze beurt)");
                 }
             }
             return;
         }
 
-        // For human players, set flag to allow input thread to proceed
-        isMyTurn = true;
+        // For human players, isMyTurn already true so input thread will proceed
     }
 
     private void handleMove(ServerMessage msg) {
@@ -223,15 +237,8 @@ public class OnlineGameController {
             }
             System.out.println("-".repeat(60));
 
-            // Determine move color based on which player moved
-            Color moveColor;
-            if (player.equalsIgnoreCase(firstPlayerName)) {
-                // First player (from MATCH message) always plays as BLACK
-                moveColor = Color.BLACK;
-            } else {
-                // Other player plays as WHITE
-                moveColor = Color.WHITE;
-            }
+            // Determine move color: use cached colors instead of deriving via firstPlayerName
+            Color moveColor = isMyMove ? myColor : opponentColor;
 
             // Update local board
             if (game.getBoard().isLegalMove(row, col, moveColor)) {
@@ -251,7 +258,7 @@ public class OnlineGameController {
 
     private void handleGameEnd(String result, ServerMessage msg) {
         inMatch = false;
-        myTurn = false;
+        isMyTurn = false;
         String p1Score = msg.get("PLAYERONESCORE");
         String p2Score = msg.get("PLAYERTWOSCORE");
         String comment = msg.get("COMMENT");
@@ -310,7 +317,14 @@ public class OnlineGameController {
                 if (isMyTurn && !autoMoveMade[0] && inMatch) {
                     autoMoveMade[0] = true;
                     System.out.println("\n\nTIJD IS OP! Automatisch een willekeurige zet spelen...");
-                    int[] randomMove = legalMoves.get(new java.util.Random().nextInt(legalMoves.size()));
+                    // recompute legal moves here to avoid stale list
+                    java.util.List<int[]> currentLegal = game.getBoard().getLegalMoves(myColor);
+                    if (currentLegal.isEmpty()) {
+                        client.send("choose -1");
+                        isMyTurn = false;
+                        return;
+                    }
+                    int[] randomMove = currentLegal.get(new java.util.Random().nextInt(currentLegal.size()));
                     int row = randomMove[0];
                     int col = randomMove[1];
                     int position = row * 8 + col;
@@ -326,7 +340,11 @@ public class OnlineGameController {
             while (!validMove && isMyTurn && gameActive && !autoMoveMade[0]) {
                 try {
                     System.out.print("\nKies zet (typ nummer 1-" + legalMoves.size() + ", of 'opgeven'): ");
-                    String input = br.readLine().trim();
+                    String input = br.readLine();
+                    if (input == null) {
+                        return;
+                    }
+                    input = input.trim();
 
                     if (autoMoveMade[0] || !isMyTurn || !inMatch) {
                         return;
@@ -344,7 +362,7 @@ public class OnlineGameController {
 
                     try {
                         int selection = Integer.parseInt(input);
-                        
+
                         if (selection >= 1 && selection <= legalMoves.size()) {
                             int[] selectedMove = legalMoves.get(selection - 1);
                             row = selectedMove[0];
@@ -358,8 +376,10 @@ public class OnlineGameController {
                         }
 
                         if (row >= 0 && row < 8 && col >= 0 && col < 8) {
+                            // recompute legal moves just before sending to avoid stale choices
+                            java.util.List<int[]> currentLegal = game.getBoard().getLegalMoves(myColor);
                             boolean isLegal = false;
-                            for (int[] move : legalMoves) {
+                            for (int[] move : currentLegal) {
                                 if (move[0] == row && move[1] == col) {
                                     isLegal = true;
                                     break;
@@ -370,10 +390,9 @@ public class OnlineGameController {
                                 timer.cancel();
                                 int position = row * 8 + col;
                                 System.out.println("Zet verzenden: rij " + (row+1) + ", kolom " + (col+1) + " (positie " + position + ")");
-                                if (inMatch && myTurn) {
+                                if (inMatch && isMyTurn) {
                                     client.send("choose " + position);
                                     isMyTurn = false;
-                                    myTurn = false;
                                     return;
                                 } else {
                                     System.out.println("Kan zet niet verzenden - niet in geldige match staat");

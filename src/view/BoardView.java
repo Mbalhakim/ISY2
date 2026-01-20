@@ -91,8 +91,8 @@ public class BoardView {
 
     private String getPrintableSymbol(Color color) {
         if (color == null || color == Color.EMPTY) return " ";
-        if (color == Color.BLACK) return "○";
-        if (color == Color.WHITE) return "●";
+        if (color == Color.BLACK) return "●";
+        if (color == Color.WHITE) return "○";
         return " ";
     }
 }

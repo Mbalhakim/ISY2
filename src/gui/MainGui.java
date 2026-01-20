@@ -39,7 +39,7 @@ public class MainGui extends Application {
             "3 - Human vs Minimax AI",
             "4 - Random AI vs Random AI",
             "5 - Minimax AI vs Minimax AI",
-            "6 - Local AI vs AI (mixed)",
+            "6 - Minimax AI vs Random AI",
             "7 - Online (multiplayer)"
         );
         modeSelector.setValue(modeSelector.getItems().get(0));

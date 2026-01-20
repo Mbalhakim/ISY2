@@ -171,9 +171,9 @@ public class GuiGameController {
             if (winner == null) {
                 msg = "Draw!";
             } else if (winner == Color.BLACK) {
-                msg = "Black wins!";
+                msg = "Black wins! \uD83C\uDFC6";
             } else {
-                msg = "White wins!";
+                msg = "White wins! \uD83C\uDFC6";
             }
 
             // Update status label and show an alert

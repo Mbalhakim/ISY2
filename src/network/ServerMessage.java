@@ -36,7 +36,7 @@ public class ServerMessage {
         // SVR GAME WIN/LOSS/DRAW {...}
         // SVR GAMELIST [...]
         // SVR PLAYERLIST [...]
-        
+
         if (message.contains("MATCH")) {
             type = "MATCH";
             extractMapPayload(message);
@@ -54,6 +54,9 @@ public class ServerMessage {
             extractMapPayload(message);
         } else if (message.contains("DRAW")) {
             type = "DRAW";
+            extractMapPayload(message);
+        } else if (message.contains("CHALLENGE CANCELLED")) {
+            type = "CHALLENGE_CANCELLED";
             extractMapPayload(message);
         } else if (message.contains("CHALLENGE")) {
             type = "CHALLENGE";
@@ -73,11 +76,11 @@ public class ServerMessage {
     private void extractMapPayload(String message) {
         int startIndex = message.indexOf('{');
         int endIndex = message.lastIndexOf('}');
-        
+
         if (startIndex >= 0 && endIndex > startIndex) {
             String mapContent = message.substring(startIndex + 1, endIndex);
             String[] pairs = mapContent.split(",");
-            
+
             for (String pair : pairs) {
                 String[] keyValue = pair.split(":", 2);
                 if (keyValue.length == 2) {

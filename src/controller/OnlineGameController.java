@@ -26,6 +26,32 @@ public class OnlineGameController {
     private boolean inMatch = false;
     private boolean myTurn = false;
 
+    // Single input thread routing (prevents lobby/menu from stealing move input)
+    private enum LobbyState { MAIN, CHALLENGE_PICK, PENDING_DECISION }
+    private volatile LobbyState lobbyState = LobbyState.MAIN;
+    private volatile java.util.List<String> lobbyCandidates = new java.util.ArrayList<>();
+
+    // Current turn context
+    private volatile java.util.List<int[]> currentLegalMoves = java.util.Collections.emptyList();
+    private final java.util.concurrent.atomic.AtomicBoolean autoMoveMade = new java.util.concurrent.atomic.AtomicBoolean(false);
+    private volatile java.util.Timer turnTimer;
+
+    // Lobby state
+    private volatile java.util.List<String> lastPlayerList = new java.util.ArrayList<>();
+    private final java.util.Map<String, PendingChallenge> pendingChallenges = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static class PendingChallenge {
+        final String number;
+        final String challenger;
+        final String gameType;
+
+        PendingChallenge(String number, String challenger, String gameType) {
+            this.number = number;
+            this.challenger = challenger;
+            this.gameType = gameType;
+        }
+    }
+
     public OnlineGameController(Game game, BoardView boardView, GameView gameView, Strategy strategy) {
         this.game = game;
         this.boardView = boardView;
@@ -75,15 +101,15 @@ public class OnlineGameController {
             client.send("login " + playerName);
             Thread.sleep(500);
 
-            // Subscribe to Othello
-            System.out.println("Inschrijven voor Othello spel...");
-            client.send("subscribe reversi-8");
-            System.out.println("Wachten op tegenstander...");
+            // Show lobby + start single input loop
+            printLobbyMenu();
+            client.send("get playerlist");
+
+            Thread inputThread = new Thread(() -> inputLoop(br), "online-input-loop");
+            inputThread.setDaemon(true);
+            inputThread.start();
 
             while (gameActive && client.isConnected()) {
-                if (isMyTurn) {
-                    makeMove(br);
-                }
                 Thread.sleep(100);
             }
 
@@ -98,6 +124,31 @@ public class OnlineGameController {
         }
     }
 
+    private void inputLoop(BufferedReader br) {
+        try {
+            while (gameActive && client.isConnected()) {
+                String line = br.readLine();
+                if (line == null) return;
+                line = line.trim();
+                if (line.isEmpty()) continue;
+
+                // Route based on current state
+                if (!inMatch) {
+                    handleLobbyInput(line);
+                } else if (isMyTurn) {
+                    handleMoveInput(line);
+                } else {
+                    // In a match, but not your turn (or AI turn). Ignore menu input.
+                    System.out.println("(Wachten op tegenstander...)");
+                }
+            }
+        } catch (Exception e) {
+            if (gameActive) {
+                System.out.println("[FOUT] Input loop gestopt: " + e.getMessage());
+            }
+        }
+    }
+
     private void handleServerMessage(String rawMessage) {
         System.out.println("[SERVER] " + rawMessage);
         ServerMessage msg = new ServerMessage(rawMessage);
@@ -105,6 +156,15 @@ public class OnlineGameController {
         switch (msg.getType()) {
             case "MATCH":
                 handleMatch(msg);
+                break;
+            case "CHALLENGE":
+                handleChallenge(msg);
+                break;
+            case "CHALLENGE_CANCELLED":
+                handleChallengeCancelled(msg);
+                break;
+            case "PLAYERLIST":
+                handlePlayerList(msg);
                 break;
             case "YOURTURN":
                 handleYourTurn(msg);
@@ -124,11 +184,319 @@ public class OnlineGameController {
         }
     }
 
+    private void printLobbyMenu() {
+        System.out.println("\n" + "=".repeat(60));
+        System.out.println("ONLINE LOBBY");
+        System.out.println("=".repeat(60));
+        System.out.println("Je kunt:\n" +
+                "  1) Matchmaking \n" +
+                "  2) Een speler uitdagen \n" +
+                "  3) Openstaande uitdagingen bekijken\n" +
+                "  4) Playerlist opnieuw ophalen\n" +
+                "  5) Afsluiten\n");
+        System.out.print("Kies optie (1-5): ");
+    }
+
+    private void handleLobbyInput(String line) {
+        try {
+            switch (lobbyState) {
+                case MAIN:
+                    handleLobbyMain(line);
+                    break;
+                case CHALLENGE_PICK:
+                    handleLobbyChallengePick(line);
+                    break;
+                case PENDING_DECISION:
+                    handleLobbyPendingDecision(line);
+                    break;
+            }
+        } catch (Exception e) {
+            System.out.println("[FOUT] " + e.getMessage());
+        }
+    }
+
+    private void handleLobbyMain(String choice) throws Exception {
+        switch (choice) {
+            case "1":
+                System.out.println("Inschrijven voor Othello (reversi-8)...");
+                client.send("subscribe reversi-8");
+                System.out.println("Wachten op tegenstander...");
+                return;
+            case "2":
+                client.send("get playerlist");
+                Thread.sleep(250);
+                lobbyCandidates = new java.util.ArrayList<>();
+                for (String p : lastPlayerList) {
+                    if (p == null) continue;
+                    if (!p.equalsIgnoreCase(playerName)) lobbyCandidates.add(p);
+                }
+                if (lobbyCandidates.isEmpty()) {
+                    System.out.println("Geen andere spelers online om uit te dagen.");
+                    printLobbyMenu();
+                    return;
+                }
+                System.out.println("\nBeschikbare spelers:");
+                for (int i = 0; i < lobbyCandidates.size(); i++) {
+                    System.out.println("  " + (i + 1) + ". " + lobbyCandidates.get(i));
+                }
+                System.out.print("Kies speler nummer (of Enter om te annuleren): ");
+                lobbyState = LobbyState.CHALLENGE_PICK;
+                return;
+            case "3":
+                if (pendingChallenges.isEmpty()) {
+                    System.out.println("Geen openstaande uitdagingen.");
+                    printLobbyMenu();
+                    return;
+                }
+                System.out.println("\nOpenstaande uitdagingen:");
+                java.util.List<PendingChallenge> list = new java.util.ArrayList<>(pendingChallenges.values());
+                list.sort(java.util.Comparator.comparing(pc -> pc.number));
+                for (PendingChallenge pc : list) {
+                    System.out.println("  #" + pc.number + " van " + pc.challenger + " (" + pc.gameType + ")");
+                }
+                System.out.print("Typ 'a <nr>' om te accepteren of 'n <nr>' om af te wijzen (Enter=terug): ");
+                lobbyState = LobbyState.PENDING_DECISION;
+                return;
+            case "4":
+                client.send("get playerlist");
+                Thread.sleep(250);
+                printPlayerList();
+                printLobbyMenu();
+                return;
+            case "5":
+                gameActive = false;
+                client.send("logout");
+                return;
+            default:
+                System.out.println("Ongeldige keuze.");
+                printLobbyMenu();
+        }
+    }
+
+    private void handleLobbyChallengePick(String input) throws Exception {
+        // Enter cancels
+        if (input == null || input.trim().isEmpty()) {
+            lobbyState = LobbyState.MAIN;
+            printLobbyMenu();
+            return;
+        }
+        int idx;
+        try {
+            idx = Integer.parseInt(input.trim()) - 1;
+        } catch (NumberFormatException e) {
+            System.out.println("Ongeldige invoer.");
+            System.out.print("Kies speler nummer (of Enter om te annuleren): ");
+            return;
+        }
+        if (idx < 0 || idx >= lobbyCandidates.size()) {
+            System.out.println("Nummer buiten bereik.");
+            System.out.print("Kies speler nummer (of Enter om te annuleren): ");
+            return;
+        }
+
+        String target = lobbyCandidates.get(idx);
+        String gameType = "reversi-8";
+        System.out.println("Uitdaging versturen naar '" + target + "' voor " + gameType + "...");
+        client.send("challenge " + target + " " + gameType);
+        System.out.println("Uitdaging verstuurd. Wacht op acceptatie.\n");
+
+        lobbyState = LobbyState.MAIN;
+        printLobbyMenu();
+    }
+
+    private void handleLobbyPendingDecision(String cmd) throws Exception {
+        if (cmd == null || cmd.trim().isEmpty()) {
+            lobbyState = LobbyState.MAIN;
+            printLobbyMenu();
+            return;
+        }
+
+        String[] parts = cmd.trim().split("\\s+");
+        if (parts.length != 2) {
+            System.out.println("Gebruik: a <nr> of n <nr>");
+            System.out.print("Typ 'a <nr>' om te accepteren of 'n <nr>' om af te wijzen (Enter=terug): ");
+            return;
+        }
+
+        String action = parts[0].toLowerCase();
+        String nr = parts[1];
+        PendingChallenge pc = pendingChallenges.get(nr);
+        if (pc == null) {
+            System.out.println("Onbekend challenge-nummer: " + nr);
+            System.out.print("Typ 'a <nr>' om te accepteren of 'n <nr>' om af te wijzen (Enter=terug): ");
+            return;
+        }
+
+        if (action.equals("a") || action.equals("accept")) {
+            System.out.println("Uitdaging #" + nr + " accepteren...");
+            client.send("challenge accept " + nr);
+            pendingChallenges.remove(nr);
+        } else if (action.equals("n") || action.equals("nee") || action.equals("decline") || action.equals("reject")) {
+            System.out.println("Uitdaging #" + nr + " afgewezen.");
+            pendingChallenges.remove(nr);
+            client.send("message \"" + pc.challenger + ", ik wijs je uitdaging (#" + nr + ") even af.\"");
+        } else {
+            System.out.println("Onbekende actie. Gebruik a of n.");
+            System.out.print("Typ 'a <nr>' om te accepteren of 'n <nr>' om af te wijzen (Enter=terug): ");
+            return;
+        }
+
+        lobbyState = LobbyState.MAIN;
+        printLobbyMenu();
+    }
+
+    private void challengeFlow(BufferedReader br) throws Exception {
+        client.send("get playerlist");
+        Thread.sleep(400);
+
+        java.util.List<String> candidates = new java.util.ArrayList<>();
+        for (String p : lastPlayerList) {
+            if (p == null) continue;
+            if (!p.equalsIgnoreCase(playerName)) candidates.add(p);
+        }
+
+        if (candidates.isEmpty()) {
+            System.out.println("Geen andere spelers online om uit te dagen.");
+            return;
+        }
+
+        System.out.println("\nBeschikbare spelers:");
+        for (int i = 0; i < candidates.size(); i++) {
+            System.out.println("  " + (i + 1) + ". " + candidates.get(i));
+        }
+
+        System.out.print("Kies speler nummer (of Enter om te annuleren): ");
+        String input = br.readLine();
+        if (input == null || input.trim().isEmpty()) return;
+
+        int idx;
+        try {
+            idx = Integer.parseInt(input.trim()) - 1;
+        } catch (NumberFormatException e) {
+            System.out.println("Ongeldige invoer.");
+            return;
+        }
+        if (idx < 0 || idx >= candidates.size()) {
+            System.out.println("Nummer buiten bereik.");
+            return;
+        }
+
+        String target = candidates.get(idx);
+
+        String gameType = "reversi-8";
+        System.out.println("Uitdaging versturen naar '" + target + "' voor " + gameType + "...");
+        client.send("challenge " + target + " " + gameType);
+        System.out.println("Uitdaging verstuurd. Wacht op acceptatie (of kies matchmaking).\n");
+    }
+
+    private void handlePendingChallenges(BufferedReader br) throws Exception {
+        if (pendingChallenges.isEmpty()) {
+            System.out.println("Geen openstaande uitdagingen.");
+            return;
+        }
+
+        System.out.println("\nOpenstaande uitdagingen:");
+        java.util.List<PendingChallenge> list = new java.util.ArrayList<>(pendingChallenges.values());
+        list.sort(java.util.Comparator.comparing(pc -> pc.number));
+        for (PendingChallenge pc : list) {
+            System.out.println("  #" + pc.number + " van " + pc.challenger + " (" + pc.gameType + ")");
+        }
+
+        System.out.print("Typ 'a <nr>' om te accepteren of 'n <nr>' om af te wijzen (Enter=terug): ");
+        String cmd = br.readLine();
+        if (cmd == null || cmd.trim().isEmpty()) return;
+
+        String[] parts = cmd.trim().split("\\s+");
+        if (parts.length != 2) {
+            System.out.println("Gebruik: a <nr> of n <nr>");
+            return;
+        }
+
+        String action = parts[0].toLowerCase();
+        String nr = parts[1];
+
+        PendingChallenge pc = pendingChallenges.get(nr);
+        if (pc == null) {
+            System.out.println("Onbekend challenge-nummer: " + nr);
+            return;
+        }
+
+        if (action.equals("a") || action.equals("accept")) {
+            System.out.println("Uitdaging #" + nr + " accepteren...");
+            client.send("challenge accept " + nr);
+            pendingChallenges.remove(nr);
+        } else if (action.equals("n") || action.equals("nee") || action.equals("decline") || action.equals("reject")) {
+            System.out.println("Uitdaging #" + nr + " afgewezen.");
+            pendingChallenges.remove(nr);
+            client.send("message \"" + pc.challenger + ", ik wijs je uitdaging (#" + nr + ") even af.\"");
+        } else {
+            System.out.println("Onbekende actie. Gebruik a of n.");
+        }
+    }
+
+    private void handleChallenge(ServerMessage msg) {
+        String challenger = msg.get("CHALLENGER");
+        String gameType = msg.get("GAMETYPE");
+        String number = msg.get("CHALLENGENUMBER");
+
+        if (challenger == null || number == null) {
+            return;
+        }
+
+        pendingChallenges.put(number, new PendingChallenge(number, challenger, gameType));
+
+        System.out.println("\n" + "!".repeat(60));
+        System.out.println("JE HEBT EEN UITDAGING ONTVANGEN!");
+        System.out.println("Van: " + challenger);
+        System.out.println("Spel: " + gameType);
+        System.out.println("Nummer: " + number);
+        System.out.println("Ga in de lobby naar optie 3 om te accepteren of af te wijzen.");
+        System.out.println("!".repeat(60) + "\n");
+    }
+
+    private void handleChallengeCancelled(ServerMessage msg) {
+        String number = msg.get("CHALLENGENUMBER");
+        if (number != null) {
+            pendingChallenges.remove(number);
+            System.out.println("Uitdaging geannuleerd door server/challenger. Nummer: " + number);
+        }
+    }
+
+    private void handlePlayerList(ServerMessage msg) {
+        String raw = msg.get("raw");
+        if (raw == null) return;
+        lastPlayerList = parseStringList(raw);
+    }
+
+    private void printPlayerList() {
+        System.out.println("\nSpelers online: " + lastPlayerList);
+    }
+
+    private java.util.List<String> parseStringList(String raw) {
+        int start = raw.indexOf('[');
+        int end = raw.lastIndexOf(']');
+        if (start < 0 || end <= start) return java.util.Collections.emptyList();
+        String inside = raw.substring(start + 1, end).trim();
+        if (inside.isEmpty()) return java.util.Collections.emptyList();
+
+        java.util.List<String> out = new java.util.ArrayList<>();
+        String[] parts = inside.split(",");
+        for (String p : parts) {
+            String name = p.trim();
+            if (name.startsWith("\"") && name.endsWith("\"")) {
+                name = name.substring(1, name.length() - 1);
+            }
+            if (!name.isEmpty()) out.add(name);
+        }
+        return out;
+    }
+
     private void handleMatch(ServerMessage msg) {
         opponentName = msg.get("OPPONENT");
         firstPlayerName = msg.get("PLAYERTOMOVE");
         inMatch = true;
         myTurn = false;
+        lobbyState = LobbyState.MAIN;
 
         // First player is BLACK, second is WHITE
         if (firstPlayerName.equalsIgnoreCase(playerName)) {
@@ -155,6 +523,7 @@ public class OnlineGameController {
 
     private void handleYourTurn(ServerMessage msg) {
         myTurn = true;
+        autoMoveMade.set(false);
 
         System.out.println("\n" + "=".repeat(50));
         System.out.println(" JOUW BEURT - JE HEBT ~10 SECONDEN!");
@@ -163,6 +532,7 @@ public class OnlineGameController {
 
         // Show legal moves for MY color
         java.util.List<int[]> legalMoves = game.getBoard().getLegalMoves(myColor);
+        currentLegalMoves = legalMoves;
         boardView.printBoard(game.getBoard(), legalMoves);
 
         if (legalMoves.isEmpty()) {
@@ -201,6 +571,95 @@ public class OnlineGameController {
 
         // For human players, set flag to allow input thread to proceed
         isMyTurn = true;
+        startTurnTimer();
+    }
+
+    private void startTurnTimer() {
+        // Cancel previous timer if any
+        if (turnTimer != null) {
+            try { turnTimer.cancel(); } catch (Exception ignored) {}
+        }
+        if (currentLegalMoves == null || currentLegalMoves.isEmpty()) return;
+
+        turnTimer = new java.util.Timer(true);
+        turnTimer.schedule(new java.util.TimerTask() {
+            @Override
+            public void run() {
+                if (!inMatch || !isMyTurn || autoMoveMade.get()) return;
+                autoMoveMade.set(true);
+                System.out.println("\n\nTIJD IS OP! Automatisch een willekeurige zet spelen...");
+                int[] randomMove = currentLegalMoves.get(new java.util.Random().nextInt(currentLegalMoves.size()));
+                int row = randomMove[0];
+                int col = randomMove[1];
+                int position = row * 8 + col;
+                System.out.println("Willekeurige zet: rij " + (row+1) + ", kolom " + (col+1) + " (positie " + position + ")");
+                client.send("choose " + position);
+                isMyTurn = false;
+                myTurn = false;
+            }
+        }, 8500);
+    }
+
+    private void handleMoveInput(String input) {
+        if (!inMatch || !isMyTurn) return;
+        if (autoMoveMade.get()) return;
+
+        if (input.equalsIgnoreCase("forfeit") || input.equalsIgnoreCase("quit") || input.equalsIgnoreCase("opgeven")) {
+            if (turnTimer != null) turnTimer.cancel();
+            client.send("forfeit");
+            isMyTurn = false;
+            myTurn = false;
+            return;
+        }
+
+        java.util.List<int[]> legalMoves = currentLegalMoves;
+        if (legalMoves == null || legalMoves.isEmpty()) {
+            System.out.println("Geen legale zetten beschikbaar!");
+            isMyTurn = false;
+            myTurn = false;
+            return;
+        }
+
+        int row;
+        int col;
+        try {
+            int selection = Integer.parseInt(input.trim());
+
+            if (selection >= 1 && selection <= legalMoves.size()) {
+                int[] selectedMove = legalMoves.get(selection - 1);
+                row = selectedMove[0];
+                col = selectedMove[1];
+            } else if (selection >= 0 && selection < 64) {
+                row = selection / 8;
+                col = selection % 8;
+            } else {
+                System.out.println("Kies een nummer tussen 1 en " + legalMoves.size());
+                return;
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("Ongeldige invoer. Typ een nummer tussen 1 en " + legalMoves.size() + " (of 'opgeven').");
+            return;
+        }
+
+        boolean isLegal = false;
+        for (int[] mv : legalMoves) {
+            if (mv[0] == row && mv[1] == col) {
+                isLegal = true;
+                break;
+            }
+        }
+        if (!isLegal) {
+            System.out.println("Illegale zet! Probeer opnieuw.");
+            return;
+        }
+
+        // Send move
+        if (turnTimer != null) turnTimer.cancel();
+        int position = row * 8 + col;
+        System.out.println("Zet verzenden: rij " + (row+1) + ", kolom " + (col+1) + " (positie " + position + ")");
+        client.send("choose " + position);
+        isMyTurn = false;
+        myTurn = false;
     }
 
     private void handleMove(ServerMessage msg) {
@@ -252,6 +711,11 @@ public class OnlineGameController {
     private void handleGameEnd(String result, ServerMessage msg) {
         inMatch = false;
         myTurn = false;
+        isMyTurn = false;
+        autoMoveMade.set(false);
+        if (turnTimer != null) {
+            try { turnTimer.cancel(); } catch (Exception ignored) {}
+        }
         String p1Score = msg.get("PLAYERONESCORE");
         String p2Score = msg.get("PLAYERTWOSCORE");
         String comment = msg.get("COMMENT");
@@ -289,128 +753,5 @@ public class OnlineGameController {
         boardView.printBoard(game.getBoard());
         System.out.println("=".repeat(60));
         gameActive = false;
-    }
-
-    private void makeMove(BufferedReader br) {
-        boolean validMove = false;
-        final boolean[] autoMoveMade = {false};
-        java.util.List<int[]> legalMoves = game.getBoard().getLegalMoves(myColor);
-
-        if (legalMoves.isEmpty()) {
-            System.out.println("Geen legale zetten beschikbaar!");
-            isMyTurn = false;
-            return;
-        }
-
-        // Auto-move timer (8.5 seconds)
-        java.util.Timer timer = new java.util.Timer();
-        timer.schedule(new java.util.TimerTask() {
-            @Override
-            public void run() {
-                if (isMyTurn && !autoMoveMade[0] && inMatch) {
-                    autoMoveMade[0] = true;
-                    System.out.println("\n\nTIJD IS OP! Automatisch een willekeurige zet spelen...");
-                    int[] randomMove = legalMoves.get(new java.util.Random().nextInt(legalMoves.size()));
-                    int row = randomMove[0];
-                    int col = randomMove[1];
-                    int position = row * 8 + col;
-                    System.out.println("Willekeurige zet: rij " + (row+1) + ", kolom " + (col+1) + " (positie " + position + ")");
-                    client.send("choose " + position);
-                    isMyTurn = false;
-                }
-            }
-        }, 8500); // 8.5 seconds
-
-        // Use a separate thread for input to avoid blocking
-        Thread inputThread = new Thread(() -> {
-            while (!validMove && isMyTurn && gameActive && !autoMoveMade[0]) {
-                try {
-                    System.out.print("\nKies zet (typ nummer 1-" + legalMoves.size() + ", of 'opgeven'): ");
-                    String input = br.readLine().trim();
-
-                    if (autoMoveMade[0] || !isMyTurn || !inMatch) {
-                        return;
-                    }
-
-                    if (input.equalsIgnoreCase("forfeit") || input.equalsIgnoreCase("quit") || input.equalsIgnoreCase("opgeven")) {
-                        timer.cancel();
-                        client.send("forfeit");
-                        isMyTurn = false;
-                        return;
-                    }
-
-                    int row = -1;
-                    int col = -1;
-
-                    try {
-                        int selection = Integer.parseInt(input);
-                        
-                        if (selection >= 1 && selection <= legalMoves.size()) {
-                            int[] selectedMove = legalMoves.get(selection - 1);
-                            row = selectedMove[0];
-                            col = selectedMove[1];
-                        } else if (selection >= 0 && selection < 64) {
-                            row = selection / 8;
-                            col = selection % 8;
-                        } else {
-                            System.out.println("Kies een nummer tussen 1 en " + legalMoves.size());
-                            continue;
-                        }
-
-                        if (row >= 0 && row < 8 && col >= 0 && col < 8) {
-                            boolean isLegal = false;
-                            for (int[] move : legalMoves) {
-                                if (move[0] == row && move[1] == col) {
-                                    isLegal = true;
-                                    break;
-                                }
-                            }
-
-                            if (isLegal) {
-                                timer.cancel();
-                                int position = row * 8 + col;
-                                System.out.println("Zet verzenden: rij " + (row+1) + ", kolom " + (col+1) + " (positie " + position + ")");
-                                if (inMatch && myTurn) {
-                                    client.send("choose " + position);
-                                    isMyTurn = false;
-                                    myTurn = false;
-                                    return;
-                                } else {
-                                    System.out.println("Kan zet niet verzenden - niet in geldige match staat");
-                                    return;
-                                }
-                            } else {
-                                System.out.println("Illegale zet! Probeer opnieuw.");
-                                System.out.println("   Legale zetten zijn:");
-                                for (int i = 0; i < legalMoves.size(); i++) {
-                                    int[] move = legalMoves.get(i);
-                                    System.out.println("   " + (i+1) + ". (" + (move[0]+1) + "," + (move[1]+1) + ")");
-                                }
-                            }
-                        } else {
-                            System.out.println("Buiten bereik! Probeer opnieuw.");
-                        }
-                    } catch (NumberFormatException e) {
-                        System.out.println("Ongeldige invoer. Typ een nummer tussen 1 en " + legalMoves.size());
-                    }
-                } catch (Exception e) {
-                    if (isMyTurn && !autoMoveMade[0]) {
-                        System.out.println("Fout bij lezen invoer: " + e.getMessage());
-                    }
-                    break;
-                }
-            }
-        });
-
-        inputThread.start();
-
-        // Wait for either input or timer
-        try {
-            inputThread.join(9000); // Wait max 9 seconds for input
-        } catch (InterruptedException e) {
-            // Ignore
-        }
-
-        timer.cancel(); // Ensure timer is cancelled
     }
 }

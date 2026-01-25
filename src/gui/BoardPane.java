@@ -148,6 +148,10 @@ public class BoardPane extends Region {
     }
 
     public void drawEmpty() {
+        // Clear cached board state to prevent old board from reappearing
+        this.lastBoard = null;
+        this.lastLegalMoves = null;
+
         if (!Platform.isFxApplicationThread()) {
             Platform.runLater(this::drawEmpty);
             return;

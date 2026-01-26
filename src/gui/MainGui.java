@@ -2,6 +2,7 @@ package gui;
 
 import core.Game;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -29,50 +30,50 @@ public class MainGui extends Application {
         GameFactory gameFactory = new DefaultGameFactory();
 
         // Title Label
-        Label titleLabel = new Label("🎮 OTHELLO GAME 🎮");
+        Label titleLabel = new Label("🎮 OTHELLO SPEL 🎮");
         titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24));
         titleLabel.setTextFill(Color.DARKBLUE);
         titleLabel.setAlignment(Pos.CENTER);
 
         // Info label with better styling
-        Label infoLabel = new Label("Welcome! Select a game mode and click Start to begin playing.");
+        Label infoLabel = new Label("Welkom! Selecteer een spelmodus en klik op Start om te beginnen.");
         infoLabel.setFont(Font.font("Arial", 12));
         infoLabel.setWrapText(true);
         infoLabel.setMaxWidth(500);
 
         // Turn label with better styling
-        Label turnLabel = new Label("Turn: Not Started");
+        Label turnLabel = new Label("Beurt: Niet Gestart");
         turnLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
         turnLabel.setTextFill(Color.DARKGREEN);
 
         // Status label with better styling
-        Label statusLabel = new Label("Ready to start");
+        Label statusLabel = new Label("Klaar om te starten");
         statusLabel.setFont(Font.font("Arial", 12));
         statusLabel.setTextFill(Color.DARKSLATEGRAY);
 
         // Game mode selector with better width
         ComboBox<String> modeSelector = new ComboBox<>();
         modeSelector.getItems().addAll(
-            "Human vs Human",
-            "Human vs Random AI",
-            "Human vs Minimax AI",
-            "Random AI vs Random AI",
+            "Mens vs Mens",
+            "Mens vs Willekeurige AI",
+            "Mens vs Minimax AI",
+            "Willekeurige AI vs Willekeurige AI",
             "Minimax AI vs Minimax AI",
-            "Minimax AI vs Random AI",
+            "Minimax AI vs Willekeurige AI",
             "Online Multiplayer"
         );
         modeSelector.setValue(modeSelector.getItems().get(0));
         modeSelector.setPrefWidth(200);
 
         // Online strategy selector (only visible for online mode)
-        Label onlineStrategyLabel = new Label("Your Strategy:");
+        Label onlineStrategyLabel = new Label("Jouw Strategie:");
         ComboBox<String> onlineStrategySelector = new ComboBox<>();
         onlineStrategySelector.getItems().addAll(
-            "Human Player",
-            "Random AI",
+            "Menselijke Speler",
+            "Willekeurige AI",
             "Minimax AI"
         );
-        onlineStrategySelector.setValue("Human Player");
+        onlineStrategySelector.setValue("Menselijke Speler");
         onlineStrategySelector.setPrefWidth(150);
 
         // Initially hide online strategy selector
@@ -100,21 +101,21 @@ public class MainGui extends Application {
         });
 
         // Start button with better styling
-        Button startBtn = new Button("▶ Start Game");
+        Button startBtn = new Button("▶ Start Spel");
         startBtn.setFont(Font.font("Arial", FontWeight.BOLD, 14));
         startBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-padding: 8 20;");
         startBtn.setOnMouseEntered(e -> startBtn.setStyle("-fx-background-color: #45a049; -fx-text-fill: white; -fx-padding: 8 20;"));
         startBtn.setOnMouseExited(e -> startBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-padding: 8 20;"));
 
         // Reset button
-        Button resetBtn = new Button("🔄 Reset");
+        Button resetBtn = new Button("🔄 Opnieuw");
         resetBtn.setFont(Font.font("Arial", 12));
         resetBtn.setStyle("-fx-background-color: #ff9800; -fx-text-fill: white; -fx-padding: 8 15;");
         resetBtn.setOnMouseEntered(e -> resetBtn.setStyle("-fx-background-color: #e68900; -fx-text-fill: white; -fx-padding: 8 15;"));
         resetBtn.setOnMouseExited(e -> resetBtn.setStyle("-fx-background-color: #ff9800; -fx-text-fill: white; -fx-padding: 8 15;"));
 
         // Top bar with better layout
-        HBox modeBox = new HBox(10, new Label("Game Mode:"), modeSelector, onlineStrategyLabel, onlineStrategySelector, startBtn, resetBtn);
+        HBox modeBox = new HBox(10, new Label("Spelmodus:"), modeSelector, onlineStrategyLabel, onlineStrategySelector, startBtn, resetBtn);
         modeBox.setAlignment(Pos.CENTER_LEFT);
         modeBox.setPadding(new Insets(10));
 
@@ -127,21 +128,6 @@ public class MainGui extends Application {
         statusBar.setAlignment(Pos.CENTER);
         statusBar.setPadding(new Insets(10));
         statusBar.setStyle("-fx-background-color: #e8e8e8; -fx-border-color: #cccccc; -fx-border-width: 1 0 0 0;");
-
-        // Instructions panel
-        VBox instructionsBox = new VBox(5);
-        instructionsBox.setAlignment(Pos.CENTER);
-        Label instTitle = new Label("How to Play:");
-        instTitle.setFont(Font.font("Arial", FontWeight.BOLD, 12));
-        Label inst1 = new Label("• Click on a highlighted green cell to place your piece");
-        Label inst2 = new Label("• Capture opponent pieces by surrounding them");
-        Label inst3 = new Label("• The game ends when no moves are available");
-        inst1.setFont(Font.font("Arial", 11));
-        inst2.setFont(Font.font("Arial", 11));
-        inst3.setFont(Font.font("Arial", 11));
-        instructionsBox.getChildren().addAll(instTitle, inst1, inst2, inst3);
-        instructionsBox.setPadding(new Insets(10));
-        instructionsBox.setStyle("-fx-background-color: #fffacd; -fx-border-color: #daa520; -fx-border-width: 1; -fx-border-radius: 5; -fx-background-radius: 5;");
 
         // board pane ready but board will be drawn after Start
         BoardPane boardPane = new BoardPane(8, 60, (r, c) -> {
@@ -159,7 +145,7 @@ public class MainGui extends Application {
         centerStack.setStyle("-fx-background-color: #ffffff;");
 
         // Info panel on the right
-        VBox infoPanel = new VBox(15, instructionsBox, infoLabel);
+        VBox infoPanel = new VBox(15, infoLabel);
         infoPanel.setPadding(new Insets(10));
         infoPanel.setPrefWidth(250);
         infoPanel.setStyle("-fx-background-color: #fafafa; -fx-border-color: #cccccc; -fx-border-width: 0 0 0 1;");
@@ -194,14 +180,22 @@ public class MainGui extends Application {
                 onlineController.cleanup();
                 onlineController = null;
             }
-            guiController = null;
-            game = null;
 
-            // Reset UI
-            boardPane.drawEmpty();
-            turnLabel.setText("Turn: Not Started");
-            statusLabel.setText("Ready to start");
-            infoLabel.setText("Game reset. Select a mode and click Start to begin a new game.");
+            // Set references to null FIRST to stop any pending operations
+            Game oldGame = game;
+            GuiGameController oldController = guiController;
+
+            game = null;
+            guiController = null;
+
+            // Give any pending UI operations a moment to complete with the old references
+            Platform.runLater(() -> {
+                // Reset UI
+                boardPane.drawEmpty();
+                turnLabel.setText("Beurt: Niet Gestart");
+                statusLabel.setText("Klaar om te starten");
+                infoLabel.setText("Spel gereset. Selecteer een modus en klik op Start om een nieuw spel te beginnen.");
+            });
         });
 
         // Start button behavior: create Game via factory and set up controller
@@ -226,13 +220,13 @@ public class MainGui extends Application {
                 String strategyName = onlineStrategySelector.getValue();
 
                 // Start online GUI controller
-                String instruction = strategyName.equals("Human Player")
-                    ? "Click on highlighted cells when it's your turn!"
-                    : "Your " + strategyName + " will play automatically when it's your turn!";
+                String instruction = strategyName.equals("Menselijke Speler")
+                    ? "Klik op gemarkeerde vakjes als het jouw beurt is!"
+                    : "Jouw " + strategyName + " speelt automatisch als het jouw beurt is!";
 
-                infoLabel.setText("🌐 Connecting to online game server...\n\nYou will be prompted to enter your player name, then matched with an opponent.\n\n" + instruction);
-                statusLabel.setText("Initializing online connection...");
-                turnLabel.setText("Turn: Waiting for match...");
+                infoLabel.setText("🌐 Verbinden met online spelserver...\n\nJe wordt gevraagd je spelersnaam in te voeren, daarna word je gekoppeld aan een tegenstander.\n\n" + instruction);
+                statusLabel.setText("Online verbinding initialiseren...");
+                turnLabel.setText("Beurt: Wachten op tegenstander...");
 
                 // Create a local Game backing (board state)
                 Game onlineGame = new Game(new HumanStrategy(), new HumanStrategy());
@@ -260,8 +254,8 @@ public class MainGui extends Application {
             // create game with chosen mode (local play)
             game = gameFactory.createGame(choice);
             if (game == null) {
-                infoLabel.setText("❌ Failed to create game for mode " + choice + ". Please try again.");
-                statusLabel.setText("Error creating game");
+                infoLabel.setText("❌ Kon geen spel maken voor modus " + choice + ". Probeer opnieuw.");
+                statusLabel.setText("Fout bij maken spel");
                 return;
             }
             // create GUI controller with turn label
@@ -272,9 +266,9 @@ public class MainGui extends Application {
 
             // show player types in info label for clarity
             String[] types = gameFactory.getPlayerTypes(choice);
-            infoLabel.setText("✅ Game started!\n\nMode: " + selected + "\n" + types[0] + " vs " + types[1] + "\n\n" +
-                            (types[0].contains("Human") ? "Your turn! Click on a highlighted green cell to make your move." : "AI is thinking..."));
-            statusLabel.setText("Game in progress");
+            infoLabel.setText("✅ Spel gestart!\n\nModus: " + selected + "\n" + types[0] + " vs " + types[1] + "\n\n" +
+                            (types[0].contains("Mens") ? "Jouw beurt! Klik op een gemarkeerd groen vakje om je zet te doen." : "AI is aan het denken..."));
+            statusLabel.setText("Spel bezig");
         });
 
         // Initial empty draw
@@ -283,42 +277,42 @@ public class MainGui extends Application {
 
     private Strategy getOnlineStrategy(String strategyName) {
         if (strategyName == null) return new HumanStrategy();
-        if (strategyName.contains("Random AI")) {
+        if (strategyName.contains("Willekeurige AI")) {
             return new RandomStrategy();
         } else if (strategyName.contains("Minimax AI")) {
-            return new MinimaxStrategy(4); // depth 4 for good performance
+            return new MinimaxStrategy(6); // depth 6 for good performance
         }
         return new HumanStrategy(); // Default to human
     }
 
     private String getModeDescription(String mode) {
         if (mode == null) return "";
-        if (mode.contains("Human vs Human")) {
-            return "Two players take turns on the same computer. Perfect for playing with a friend!";
-        } else if (mode.contains("Human vs Random AI")) {
-            return "Play against a computer that makes random moves. Good for beginners!";
-        } else if (mode.contains("Human vs Minimax AI")) {
-            return "Challenge yourself against a smart AI that thinks ahead. Recommended for experienced players!";
-        } else if (mode.contains("Random AI vs Random AI")) {
-            return "Watch two random AIs compete. Great for demonstration!";
+        if (mode.contains("Mens vs Mens")) {
+            return "Twee spelers spelen om de beurt op dezelfde computer. Perfect om met een vriend te spelen!";
+        } else if (mode.contains("Mens vs Willekeurige AI")) {
+            return "Speel tegen een computer die willekeurige zetten doet. Goed voor beginners!";
+        } else if (mode.contains("Mens vs Minimax AI")) {
+            return "Daag jezelf uit tegen een slimme AI die vooruit denkt. Aanbevolen voor ervaren spelers!";
+        } else if (mode.contains("Willekeurige AI vs Willekeurige AI")) {
+            return "Kijk hoe twee willekeurige AI's strijden. Ideaal voor demonstratie!";
         } else if (mode.contains("Minimax AI vs Minimax AI")) {
-            return "Watch two smart AIs battle it out. See optimal strategy in action!";
-        } else if (mode.contains("Minimax AI vs Random AI")) {
-            return "Watch a smart AI dominate a random opponent. Educational viewing!";
+            return "Kijk hoe twee slimme AI's het uitvechten. Zie optimale strategie in actie!";
+        } else if (mode.contains("Minimax AI vs Willekeurige AI")) {
+            return "Kijk hoe een slimme AI een willekeurige tegenstander domineert. Leerzaam om te bekijken!";
         } else if (mode.contains("Online Multiplayer")) {
-            return "Play against another player over the network. Requires game server to be running!";
+            return "Speel tegen een andere speler via het netwerk. Vereist dat de spelserver draait!";
         }
-        return "Select a game mode to see details.";
+        return "Selecteer een spelmodus om details te zien.";
     }
 
     private int getModeChoice(String mode) {
         if (mode == null) return 1;
-        if (mode.contains("Human vs Human")) return 1;
-        if (mode.contains("Human vs Random AI")) return 2;
-        if (mode.contains("Human vs Minimax AI")) return 3;
-        if (mode.contains("Random AI vs Random AI")) return 4;
+        if (mode.contains("Mens vs Mens")) return 1;
+        if (mode.contains("Mens vs Willekeurige AI")) return 2;
+        if (mode.contains("Mens vs Minimax AI")) return 3;
+        if (mode.contains("Willekeurige AI vs Willekeurige AI")) return 4;
         if (mode.contains("Minimax AI vs Minimax AI")) return 5;
-        if (mode.contains("Minimax AI vs Random AI")) return 6;
+        if (mode.contains("Minimax AI vs Willekeurige AI")) return 6;
         if (mode.contains("Online Multiplayer")) return 7;
         return 1;
     }

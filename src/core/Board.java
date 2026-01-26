@@ -15,6 +15,9 @@ public class Board {
     // 2D bord: [rij][kolom]
     private Color[][] grid;
 
+    // Track total moves made
+    private int moveCount = 0;
+
     public Board() {
         grid = new Color[SIZE][SIZE];
         // startpositie
@@ -31,6 +34,7 @@ public class Board {
                 newBoard.grid[r][c] = this.grid[r][c];
             }
         }
+        newBoard.moveCount = this.moveCount;
         return newBoard;
     }
 
@@ -145,6 +149,10 @@ public class Board {
 
     public int getSize() {
         return SIZE;
+    }
+
+    public int getMoveCount() {
+        return moveCount;
     }
 
     public static int[] stringToMove(String move) {

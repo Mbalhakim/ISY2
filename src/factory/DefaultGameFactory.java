@@ -15,13 +15,13 @@ public class DefaultGameFactory implements GameFactory {
             case 2:
                 return new Game(new HumanStrategy(), new RandomStrategy());
             case 3:
-                return new Game(new HumanStrategy(), new MinimaxStrategy(4));
+                return new Game(new HumanStrategy(), new MinimaxStrategy(6));
             case 4:
                 return new Game(new RandomStrategy(), new RandomStrategy());
             case 5:
-                return new Game(new MinimaxStrategy(4), new MinimaxStrategy(4));
+                return new Game(new MinimaxStrategy(6), new MinimaxStrategy(6));
             case 6:
-                return new Game(new MinimaxStrategy(4), new RandomStrategy());
+                return new Game(new MinimaxStrategy(6), new RandomStrategy());
             default:
                 return new Game(new HumanStrategy(), new HumanStrategy());
         }

@@ -57,7 +57,7 @@ public class GameController {
                     System.out.println("Gebruik Willekeurige AI strategie voor online spel");
                     break;
                 case 3:
-                    strategy = new strategies.MinimaxStrategy(3); // Depth 3 for faster online play
+                    strategy = new strategies.MinimaxStrategy(6); // Depth 6 for optimal play
                     System.out.println("Gebruik Minimax AI strategie voor online spel");
                     break;
                 default:

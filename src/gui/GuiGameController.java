@@ -34,12 +34,20 @@ public class GuiGameController {
 
     public void refreshBoard() {
         Platform.runLater(() -> {
+            // Check if game is still valid (not reset/null)
+            if (game == null || game.getBoard() == null) {
+                return;
+            }
+
             Board b = game.getBoard();
-            List<int[]> legal = b.getLegalMoves(game.getCurrentPlayer());
+            Color currentPlayer = game.getCurrentPlayer();
+
+            // Get legal moves only if there's a current player
+            List<int[]> legal = (currentPlayer != null) ? b.getLegalMoves(currentPlayer) : java.util.Collections.emptyList();
             boardPane.drawBoard(b, legal);
 
             // update turn label with current player and scores
-            String playerText = (game.getCurrentPlayer() == null) ? "Game Over" : game.getCurrentPlayer().toString();
+            String playerText = (currentPlayer == null) ? "Game Over" : currentPlayer.toString();
             int black = game.getScore(Color.BLACK);
             int white = game.getScore(Color.WHITE);
             turnLabel.setText("Turn: " + playerText + " — B: " + black + " W: " + white);
@@ -55,6 +63,11 @@ public class GuiGameController {
     }
 
     public void onCellClicked(int row, int col) {
+        // Check if game is still valid
+        if (game == null || game.isGameOver()) {
+            return;
+        }
+
         // Only allow human strategy to perform clicks
         if (!(game.getActiveStrategy() instanceof HumanStrategy)) {
             System.out.println("Not a human turn - click ignored.");
@@ -64,6 +77,12 @@ public class GuiGameController {
         // recompute legal moves just before sending
         Board b = game.getBoard();
         enums.Color player = game.getCurrentPlayer();
+
+        // Check if there's a current player
+        if (player == null) {
+            return;
+        }
+
         List<int[]> legal = b.getLegalMoves(player);
         boolean isLegal = legal.stream().anyMatch(m -> m[0] == row && m[1] == col);
         if (!isLegal) {
@@ -81,6 +100,11 @@ public class GuiGameController {
     }
 
     private void startAIMovesIfNeeded() {
+        // Check if game is still valid
+        if (game == null) {
+            return;
+        }
+
         // Start a single background thread that will play out consecutive AI turns
         if (!aiRunning.compareAndSet(false, true)) return; // already running
         if (game.getCurrentPlayer() == null) {
@@ -97,7 +121,7 @@ public class GuiGameController {
                 // Loop while current active player is an AI and game not over
                 while (true) {
                     // check end conditions each iteration
-                    if (game.getCurrentPlayer() == null) break;
+                    if (game == null || game.getCurrentPlayer() == null) break;
                     if (game.getActiveStrategy() instanceof HumanStrategy) break;
 
                     // Recompute legal moves for current player
@@ -127,14 +151,18 @@ public class GuiGameController {
 
                     // Verify the chosen move is still legal (recompute)
                     boolean isStillLegal = false;
-                    List<int[]> currentLegal = game.getBoard().getLegalMoves(game.getCurrentPlayer());
-                    if (currentLegal != null) {
-                        for (int[] m : currentLegal) {
-                            if (m[0] == move[0] && m[1] == move[1]) {
-                                isStillLegal = true;
-                                break;
+                    if (game != null && game.getCurrentPlayer() != null) {
+                        List<int[]> currentLegal = game.getBoard().getLegalMoves(game.getCurrentPlayer());
+                        if (currentLegal != null) {
+                            for (int[] m : currentLegal) {
+                                if (m[0] == move[0] && m[1] == move[1]) {
+                                    isStillLegal = true;
+                                    break;
+                                }
                             }
                         }
+                    } else {
+                        break; // Game was reset
                     }
 
                     if (!isStillLegal) {
@@ -144,7 +172,8 @@ public class GuiGameController {
                         continue;
                     }
 
-                    // Make move and advance player
+                    // Make move and advance player (check game still valid)
+                    if (game == null) break;
                     game.makeMove(move);
                     game.nextPlayer();
 

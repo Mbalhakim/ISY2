@@ -42,6 +42,22 @@ public class Game {
     public void nextPlayer() {
         currentPlayer = getNextPlayer(currentPlayer);
     }
+
+    /**
+     * Execute one complete turn: get move from strategy, make move, and switch player
+     */
+    public void playTurn() {
+        if (isGameOver()) {
+            return;
+        }
+
+        int[] move = getMoveFromStrategy();
+        if (move != null) {
+            makeMove(move);
+        }
+        nextPlayer();
+    }
+
     public boolean isGameOver() {
         return currentPlayer == null;
     }
